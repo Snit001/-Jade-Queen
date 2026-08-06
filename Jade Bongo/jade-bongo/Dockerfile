@@ -1,4 +1,3 @@
-# Jade Bɔngɔ́ — image tout-en-un (API + interfaces)
 FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -14,5 +13,4 @@ COPY frontend ./frontend
 RUN mkdir -p /data
 EXPOSE 8000
 
-WORKDIR /app/backend
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "cd backend && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
