@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920">
+  <style>
+    .title { font: 700 26px system-ui, sans-serif; fill: #f1f5f9; }
+    .subtitle { font: 400 13px system-ui, sans-serif; fill: #94a3b8; }
+    .band { font: 700 12px system-ui, sans-serif; fill: #94a3b8; letter-spacing: 3px; }
+    .bt { font: 700 14px system-ui, sans-serif; fill: #f8fafc; }
+    .bd { font: 400 11px system-ui, sans-serif; fill: #cbd5e1; }
+    .chip { font: 600 12.5px system-ui, sans-serif; fill: #e0f2fe; }
+  </style>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="920" fill="#0b1220"/>
+
+  <text class="title" x="640" y="38" text-anchor="middle">Jade Bɔngɔ́ — Architecture v1</text>
+  <text class="subtitle" x="640" y="62" text-anchor="middle">Programme dédié · Jade Queen MBO (née le 03/09/2022) · Phase 1 active · voix + images · Zero Trust</text>
+
+  <!-- ========= 1 EXPÉRIENCE ========= -->
+  <text class="band" x="60" y="92">1 · EXPÉRIENCE</text>
+  <g>
+    <rect x="60" y="100" width="340" height="70" rx="10" fill="#4c1d95" stroke="#a78bfa"/>
+    <text class="bt" x="180" y="128">🎮 App Jade Bɔngɔ́ (PWA)</text>
+    <text class="bd" x="180" y="148">Voix + images · zéro lecture · offline</text>
+
+    <rect x="470" y="100" width="340" height="70" rx="10" fill="#4c1d95" stroke="#a78bfa"/>
+    <text class="bt" x="595" y="128">👨‍👩‍👧 Dashboard Parents</text>
+    <text class="bd" x="595" y="148">Progrès · questions d'identification · alertes</text>
+
+    <rect x="880" y="100" width="340" height="70" rx="10" fill="#4c1d95" stroke="#a78bfa"/>
+    <text class="bt" x="1020" y="128">🖥 Command Center</text>
+    <text class="bd" x="1020" y="148">Vue « Jade Bɔngɔ́ » · santé · KPIs</text>
+  </g>
+
+  <line x1="640" y1="172" x2="640" y2="196" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ========= 2 EDGE ========= -->
+  <text class="band" x="60" y="192">2 · EDGE — ENTRÉE UNIQUE</text>
+  <g>
+    <rect x="60" y="200" width="560" height="64" rx="10" fill="#1e293b" stroke="#64748b"/>
+    <text class="bt" x="300" y="226">Traefik API Gateway + WAF</text>
+    <text class="bd" x="300" y="246">Rate-limit · TLS · routage · mTLS inter-services</text>
+
+    <rect x="660" y="200" width="560" height="64" rx="10" fill="#1e293b" stroke="#64748b"/>
+    <text class="bt" x="910" y="226">Keycloak — OIDC</text>
+    <text class="bd" x="910" y="246">Comptes parents (2FA) · RBAC/ABAC · zéro auth maison</text>
+  </g>
+
+  <line x1="640" y1="266" x2="640" y2="296" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ========= 3 CŒUR ========= -->
+  <text class="band" x="60" y="292">3 · CŒUR JADE BƆNGƆ́ — MICROSERVICES CLOISONNÉS</text>
+  <rect x="60" y="300" width="1160" height="290" rx="14" fill="#111c2e" stroke="#38bdf8" stroke-opacity="0.45"/>
+
+  <g>
+    <rect x="80" y="336" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#f87171" stroke-width="2.2"/>
+    <text class="bt" x="212" y="356">🔐 Portier d'identification</text>
+    <text class="bd" x="212" y="374">Questions secrètes · Argon2id · verrous</text>
+
+    <rect x="365" y="336" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="497" y="356">📅 Age Calibration</text>
+    <text class="bd" x="497" y="374">Âge exact · phase active · politiques</text>
+
+    <rect x="650" y="336" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="782" y="356">🎓 Orchestrateur Tuteur</text>
+    <text class="bd" x="782" y="374">Agent Mentor · stratégie pédagogique</text>
+
+    <rect x="935" y="336" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#f87171" stroke-width="2.2"/>
+    <text class="bt" x="1067" y="356">🛡 LLM Gateway</text>
+    <text class="bd" x="1067" y="374">Multi Intelligence · garde-fous enfant</text>
+
+    <rect x="80" y="400" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="212" y="420">🧩 Curriculum &amp; Skills</text>
+    <text class="bd" x="212" y="438">Graphe · mastery · répétition espacée</text>
+
+    <rect x="365" y="400" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="497" y="420">📚 Contenus validés</text>
+    <text class="bd" x="497" y="438">Comptines · jeux · histoires · images</text>
+
+    <rect x="650" y="400" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="782" y="420">⭐ Évaluation ludique</text>
+    <text class="bd" x="782" y="438">Diagnostic continu · zéro stress</text>
+
+    <rect x="935" y="400" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#fbbf24" stroke-width="2"/>
+    <text class="bt" x="1067" y="420">⚖ Bien-être (veto)</text>
+    <text class="bd" x="1067" y="438">Temps d'écran · fatigue · pauses</text>
+
+    <rect x="80" y="464" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="212" y="484">📊 Rapport Parental</text>
+    <text class="bd" x="212" y="502">Transparence totale · notifications</text>
+
+    <rect x="365" y="464" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="497" y="484">🎙 Voice STT/TTS</text>
+    <text class="bd" x="497" y="502">Streaming voix enfant · &lt; 1 s</text>
+
+    <rect x="650" y="464" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="782" y="484">🧾 Audit immuable</text>
+    <text class="bd" x="782" y="502">Append-only · RGPD · replay</text>
+
+    <rect x="935" y="464" width="265" height="52" rx="9" fill="#0e3a5d" stroke="#38bdf8"/>
+    <text class="bt" x="1067" y="484">⭐ Évaluateur / Matières</text>
+    <text class="bd" x="1067" y="498">Agents spécialisés par domaine</text>
+
+    <rect x="80" y="528" width="1120" height="48" rx="9" fill="#04263f" stroke="#0ea5e9"/>
+    <text class="chip" x="640" y="557" text-anchor="middle">Agents : Mentor principal · Curricula · Évaluateur · Matières · Motivation &amp; Confiance · Bien-être (veto) · Rapport parental · Gardien 🛡 (veto absolu)</text>
+  </g>
+
+  <line x1="640" y1="592" x2="640" y2="622" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ========= 4 DONNÉES ========= -->
+  <text class="band" x="60" y="618">4 · DONNÉES — SCHÉMA « jade » CLOISONNÉ (RLS · PII CHIFFRÉE)</text>
+  <g>
+    <rect x="60" y="626" width="176" height="64" rx="9" fill="#0b3d2e" stroke="#34d399"/>
+    <text class="bt" x="148" y="652">PostgreSQL</text>
+    <text class="bd" x="148" y="670">skills · mastery</text>
+
+    <rect x="256" y="626" width="176" height="64" rx="9" fill="#0b3d2e" stroke="#34d399"/>
+    <text class="bt" x="344" y="652">Redis</text>
+    <text class="bd" x="344" y="670">sessions · verrous</text>
+
+    <rect x="452" y="626" width="176" height="64" rx="9" fill="#0b3d2e" stroke="#34d399"/>
+    <text class="bt" x="540" y="652">Qdrant</text>
+    <text class="bd" x="540" y="670">mémoire vectorielle</text>
+
+    <rect x="648" y="626" width="176" height="64" rx="9" fill="#0b3d2e" stroke="#34d399"/>
+    <text class="bt" x="736" y="652">MinIO</text>
+    <text class="bd" x="736" y="670">contenus validés</text>
+
+    <rect x="844" y="626" width="176" height="64" rx="9" fill="#0b3d2e" stroke="#34d399"/>
+    <text class="bt" x="932" y="652">Kafka</text>
+    <text class="bd" x="932" y="670">events · audit bus</text>
+
+    <rect x="1040" y="626" width="176" height="64" rx="9" fill="#0b3d2e" stroke="#34d399"/>
+    <text class="bt" x="1128" y="652">Vault</text>
+    <text class="bd" x="1128" y="670">secrets · transit</text>
+  </g>
+
+  <line x1="640" y1="692" x2="640" y2="720" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ========= 5 PLATEFORME ========= -->
+  <text class="band" x="60" y="716">5 · PLATEFORME &amp; OBSERVABILITÉ</text>
+  <g>
+    <rect x="60" y="724" width="560" height="64" rx="10" fill="#3f2503" stroke="#f59e0b"/>
+    <text class="bt" x="300" y="750">Kubernetes · Terraform · ArgoCD · GitHub Actions</text>
+    <text class="bd" x="300" y="770">GitOps · CI 100 % typé/testé · NetworkPolicies · rollback auto</text>
+
+    <rect x="660" y="724" width="560" height="64" rx="10" fill="#312e81" stroke="#818cf8"/>
+    <text class="bt" x="910" y="750">OpenTelemetry → Prometheus · Grafana · Loki · Tempo</text>
+    <text class="bd" x="910" y="770">Tracing bout-en-bout · SLO voix p95 &lt; 1 s · alertes ops/parents</text>
+  </g>
+
+  <line x1="640" y1="790" x2="640" y2="818" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+
+  <!-- ========= EXTÉRIEUR ========= -->
+  <text class="band" x="60" y="814">EXTÉRIEUR (ACCÈS FILTRÉS UNIQUEMENT)</text>
+  <g>
+    <rect x="60" y="822" width="560" height="60" rx="10" fill="#18181b" stroke="#a1a1aa" stroke-dasharray="6 4"/>
+    <text class="bt" x="300" y="846">🤖 Fournisseurs LLM</text>
+    <text class="bd" x="300" y="866">OpenAI · Claude · Gemini · Mistral · locaux — routés et doublement filtrés par le LLM Gateway</text>
+
+    <rect x="660" y="822" width="560" height="60" rx="10" fill="#18181b" stroke="#a1a1aa" stroke-dasharray="6 4"/>
+    <text class="bt" x="910" y="846">📲 Notifications parents</text>
+    <text class="bd" x="910" y="866">Push / email : rapports, alertes d'accès, demandes de validation</text>
+  </g>
+
+  <text class="subtitle" x="640" y="908" text-anchor="middle">🔐 Règle absolue : aucune donnée de Jade ne circule en amont du Portier sans identification réussie.</text>
+</svg>

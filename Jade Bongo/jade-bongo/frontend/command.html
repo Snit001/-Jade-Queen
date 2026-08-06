@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jade Bɔngɔ́ — Command Center</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="cmd">
+  <div class="cmd-wrap">
+    <div id="login" class="login-box card" style="background:var(--cmd-card); border-color:var(--cmd-line)">
+      <h1 style="color:#7dd3fc">🖥 Command Center</h1>
+      <p style="color:#94a3b8; font-size:14px; margin-bottom:14px">Vue « Mission Jade » — temps réel</p>
+      <label class="f" for="pin" style="color:#94a3b8">Code parent (PIN)</label>
+      <input id="pin" type="password" inputmode="numeric" placeholder="••••">
+      <br><br>
+      <button class="btn" id="loginBtn">Accéder</button>
+      <p id="loginErr" style="color:var(--bad); font-size:13px; margin-top:10px"></p>
+      <p style="margin-top:16px"><a class="link" href="parent.html">← Espace Parents</a> · <a class="link" href="index.html">App Jade</a></p>
+    </div>
+
+    <div id="cmd" style="display:none">
+      <div class="cmd-head">
+        <h1>◉ MISSION JADE — COMMAND CENTER</h1>
+        <span class="live-dot"></span><span style="font-size:13px;color:#94a3b8">temps réel · 5 s</span>
+        <span id="uptime" class="mono" style="color:#94a3b8"></span>
+        <a class="btn secondary" href="parent.html" style="margin-left:auto">👨‍👩‍👧 Espace Parents</a>
+        <button class="btn secondary" id="logoutBtn">Déconnexion</button>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="cmd-grid">
+        <div class="cmd-card" id="cc-skills"><h2>⭐ Graphe de compétences</h2><div class="body"></div></div>
+        <div class="cmd-card" id="cc-identity"><h2>🔐 Journal des identifications</h2><div class="body scrollbox"></div></div>
+        <div class="cmd-card" id="cc-services"><h2>🛰 Services</h2><div class="body"></div></div>
+        <div class="cmd-card" id="cc-wellbeing"><h2>⏱ Bien-être & limites</h2><div class="body"></div></div>
+      </div>
+    </div>
+  </div>
+  <script src="command.js" defer></script>
+</body>
+</html>

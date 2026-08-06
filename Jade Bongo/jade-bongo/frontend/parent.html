@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jade Bɔngɔ́ — Espace Parents</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dash">
+  <div class="wrap">
+    <div id="login" class="login-box card">
+      <h1>👨‍👩‍👧 Espace Parents</h1>
+      <p style="color:var(--muted); font-size:14px; margin-bottom:14px">Jade Bɔngɔ́ — supervision, sécurité, transparence.</p>
+      <label class="f" for="pin">Code parent (PIN)</label>
+      <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="current-password">
+      <br><br>
+      <button class="btn" id="loginBtn">Se connecter</button>
+      <p id="loginErr" style="color:var(--bad); font-size:13px; margin-top:10px"></p>
+      <p style="margin-top:16px"><a href="index.html">← Retour à l'application de Jade</a> · <a href="command.html">Command Center</a></p>
+    </div>
+
+    <div id="dash" style="display:none">
+      <div class="topbar">
+        <h1>👨‍👩‍👧 Espace Parents</h1>
+        <a class="btn secondary" href="command.html">🖥 Command Center</a>
+        <button class="btn secondary" id="refreshBtn">↻ Rafraîchir</button>
+        <button class="btn secondary" id="readNotifBtn">✉ Marquer alertes lues</button>
+        <button class="btn danger" id="unlockBtn">🔓 Déverrouiller l'accès</button>
+        <button class="btn secondary" id="logoutBtn">Déconnexion</button>
+      </div>
+      <div class="cards">
+        <div class="card" id="c-age"><h2>📅 Âge & Phase</h2><div class="body"></div></div>
+        <div class="card" id="c-today"><h2>⏱ Aujourd'hui & Bien-être</h2><div class="body"></div></div>
+        <div class="card" id="c-mastery"><h2>⭐ Compétences de Jade</h2><div class="body"></div></div>
+        <div class="card" id="c-notif"><h2>🔔 Alertes</h2><div class="body"></div></div>
+        <div class="card" id="c-consents"><h2>📜 Consentements RGPD</h2><div class="body"></div></div>
+        <div class="card" id="c-questions"><h2>🔐 Questions d'identification</h2><div class="body"></div></div>
+        <div class="card" id="c-audit" style="grid-column:1/-1"><h2>🧾 Journal d'audit (transparence totale)</h2><div class="body"></div></div>
+      </div>
+      <p style="margin-top:18px"><a href="index.html">← Retour à l'application de Jade</a></p>
+    </div>
+  </div>
+  <script src="parent.js" defer></script>
+</body>
+</html>
