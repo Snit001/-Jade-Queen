@@ -13,38 +13,42 @@
 <body class="dash">
   <div class="wrap">
     <div id="login" class="login-box card">
-      <h1>👨‍👩‍👧 Espace Parents</h1>
-      <p style="color:var(--muted); font-size:14px; margin-bottom:14px">Jade Bɔngɔ́ — supervision, sécurité, transparence.</p>
-      <label class="f" for="pin">Code parent (PIN)</label>
+      <h1 data-i18n="p.title">👨‍👩‍👧 Espace Parents</h1>
+      <p style="color:var(--muted); font-size:14px; margin-bottom:14px" data-i18n="p.sub">Jade Bɔngɔ́ — supervision, sécurité, transparence.</p>
+      <label class="f" for="pin" data-i18n="p.pin">Code parent (PIN)</label>
       <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="current-password">
       <br><br>
-      <button class="btn" id="loginBtn">Se connecter</button>
+      <button class="btn" id="loginBtn" data-i18n="p.login">Se connecter</button>
       <p id="loginErr" style="color:var(--bad); font-size:13px; margin-top:10px"></p>
-      <p style="margin-top:16px"><a href="index.html">← Retour à l'application de Jade</a> · <a href="command.html">Command Center</a></p>
+      <p style="margin-top:16px"><a href="index.html" data-i18n="p.back_app">← Retour à l'application de Jade</a> · <a href="command.html" data-i18n="p.command">Command Center</a></p>
     </div>
 
     <div id="dash" style="display:none">
       <div class="topbar">
-        <h1>👨‍👩‍👧 Espace Parents</h1>
-        <a class="btn secondary" href="command.html">🖥 Command Center</a>
-        <button class="btn secondary" id="refreshBtn">↻ Rafraîchir</button>
-        <button class="btn secondary" id="readNotifBtn">✉ Marquer alertes lues</button>
-        <button class="btn danger" id="unlockBtn">🔓 Déverrouiller l'accès</button>
-        <button class="btn secondary" id="logoutBtn">Déconnexion</button>
+        <h1 data-i18n="p.title">👨‍👩‍👧 Espace Parents</h1>
+        <a class="btn secondary" href="command.html" data-i18n="p.command">🖥 Command Center</a>
+        <button class="btn secondary" id="refreshBtn" data-i18n="p.refresh">↻ Rafraîchir</button>
+        <button class="btn secondary" id="readNotifBtn" data-i18n="p.notif_read">✉ Marquer alertes lues</button>
+        <button class="btn danger" id="unlockBtn" data-i18n="p.unlock">🔓 Déverrouiller l'accès</button>
+        <button class="btn secondary" id="logoutBtn" data-i18n="p.logout">Déconnexion</button>
       </div>
       <div class="cards">
-        <div class="card" id="c-age"><h2>📅 Âge & Phase</h2><div class="body"></div></div>
-        <div class="card" id="c-today"><h2>⏱ Aujourd'hui & Bien-être</h2><div class="body"></div></div>
-        <div class="card" id="c-mastery"><h2>⭐ Compétences de Jade</h2><div class="body"></div></div>
-        <div class="card" id="c-notif"><h2>🔔 Alertes</h2><div class="body"></div></div>
-        <div class="card" id="c-consents"><h2>📜 Consentements RGPD</h2><div class="body"></div></div>
-        <div class="card" id="c-questions"><h2>🔐 Questions d'identification</h2><div class="body"></div></div>
-        <div class="card" id="c-audit" style="grid-column:1/-1"><h2>🧾 Journal d'audit (transparence totale)</h2><div class="body"></div></div>
+        <div class="card" id="c-age"><h2 data-i18n="p.c_age">📅 Âge & Phase</h2><div class="body"></div></div>
+        <div class="card" id="c-today"><h2 data-i18n="p.c_today">⏱ Aujourd'hui & Bien-être</h2><div class="body"></div></div>
+        <div class="card" id="c-settings"><h2 data-i18n="p.c_settings">🌍 Langue & Profil d'adaptation</h2><div class="body"></div></div>
+        <div class="card" id="c-children"><h2 data-i18n="p.c_children">👶 Enfants</h2><div class="body"></div></div>
+        <div class="card" id="c-eval" style="grid-column:1/-1"><h2 data-i18n="p.c_eval">🚀 Évaluation initiale — « elle sait déjà ! »</h2><div class="body"></div></div>
+        <div class="card" id="c-mastery"><h2 data-i18n="p.c_mastery">⭐ Compétences</h2><div class="body"></div></div>
+        <div class="card" id="c-notif"><h2 data-i18n="p.c_notif">🔔 Alertes</h2><div class="body"></div></div>
+        <div class="card" id="c-consents"><h2 data-i18n="p.c_consents">📜 Consentements RGPD</h2><div class="body"></div></div>
+        <div class="card" id="c-questions"><h2 data-i18n="p.c_questions">🔐 Questions d'identification</h2><div class="body"></div></div>
+        <div class="card" id="c-audit" style="grid-column:1/-1"><h2 data-i18n="p.c_audit">🧾 Journal d'audit (transparence totale)</h2><div class="body"></div></div>
       </div>
-      <p style="margin-top:18px"><a href="index.html">← Retour à l'application de Jade</a></p>
+      <p style="margin-top:18px"><a href="index.html" data-i18n="p.back_app">← Retour à l'application de Jade</a></p>
     </div>
   </div>
+  <script src="i18n.js" defer></script>
   <script src="parent.js" defer></script>
   <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});</script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2706e3e0cc3ff34',t:'MTc4NjA0NDM1OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>

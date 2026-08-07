@@ -1,25 +1,42 @@
 "use strict";
-/* Jade Bɔngɔ́ — Espace Parents : supervision, questions, politiques, audit. */
+/* Jade Bɔngɔ́ — Espace Parents v2.0 : trilingue, évaluation initiale,
+   réglages d'adaptation (langue / attention / soutien langage). */
 
 const $ = (s) => document.querySelector(s);
 let token = sessionStorage.getItem("jb_ptoken") || null;
+let CHILD = null;
+let CHILDREN = [];
+let TREE = null;               // arbre complet (évaluation + badges)
+const T = (k, v) => window.I18N.t("p." + k, v);
 
 const CONSENT_LABELS = {
-  education: "Éducation (autorise les leçons)",
-  stockage_donnees: "Stockage des données de progression",
-  voix_audio: "Utilisation de la voix (STT/TTS navigateur)",
-  rapports_parents: "Rapports et alertes parents",
+  education: { fr: "Éducation (autorise les leçons)", en: "Education (allows the lessons)", es: "Educación (autoriza las lecciones)" },
+  stockage_donnees: { fr: "Stockage des données de progression", en: "Storage of progress data", es: "Almacenamiento de datos de progreso" },
+  voix_audio: { fr: "Utilisation de la voix (STT/TTS navigateur)", en: "Voice use (browser STT/TTS)", es: "Uso de la voz (STT/TTS del navegador)" },
+  rapports_parents: { fr: "Rapports et alertes parents", en: "Parent reports & alerts", es: "Informes y alertas para padres" },
 };
-const NOTIF_LABELS = {
-  "identity.locked": "🔒 Accès verrouillé (échecs répétés)",
-  "wellbeing.veto": "⏱ Pause bien-être appliquée (veto)",
-  "wellbeing.daily_limit": "🌙 Limite de sessions du jour atteinte",
-  "learning.milestone": "🏆 Jalon franchi par Jade",
+const NOTIF_KEYS = {
+  "identity.locked": "🔒 Accès verrouillé (échecs répétés)|🔒 Access locked (repeated failures)|🔒 Acceso bloqueado (fallos repetidos)",
+  "wellbeing.veto": "⏱ Pause bien-être appliquée (veto)|⏱ Wellbeing break applied (veto)|⏱ Pausa de bienestar aplicada (veto)",
+  "wellbeing.daily_limit": "🌙 Limite de sessions du jour atteinte|🌙 Daily session limit reached|🌙 Límite diario de sesiones alcanzado",
+  "learning.milestone": "🏆 Jalon franchi|🏆 Milestone reached|🏆 Hito alcanzado",
+  "learning.acceleration": "🚀 Accélération (compétence validée du premier coup)|🚀 Acceleration (skill mastered first try)|🚀 Aceleración (competencia validada a la primera)",
+  "parent.child_created": "👶 Nouveau profil enfant|👶 New child profile|👶 Nuevo perfil de niño",
+  "parent.evaluation": "📋 Évaluation initiale enregistrée|📋 Initial assessment saved|📋 Evaluación inicial guardada",
+  "parent.child_updated": "⚙️ Réglages de l'enfant modifiés|⚙️ Child settings updated|⚙️ Ajustes del niño modificados",
 };
+function notifLabel(type) {
+  const raw = NOTIF_KEYS[type];
+  if (!raw) return type;
+  const [fr, en, es] = raw.split("|");
+  return { fr, en, es }[window.I18N.get()] || fr;
+}
 
 function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-function fmtDate(ts) { return ts ? new Date(ts).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"; }
+function fmtDate(ts) { return ts ? new Date(ts).toLocaleString(window.I18N.get(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"; }
+function qs() { return CHILD ? "?child_id=" + encodeURIComponent(CHILD) : ""; }
+function qsAnd() { return CHILD ? "&child_id=" + encodeURIComponent(CHILD) : ""; }
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -35,148 +52,287 @@ async function api(path, opts = {}) {
 function logout() { sessionStorage.removeItem("jb_ptoken"); token = null; location.reload(); }
 
 /* ---------------- login ---------------- */
-$("#loginBtn").onclick = async () => {
-  $("#loginErr").textContent = "";
-  try {
-    const r = await api("/api/parent/login", { method: "POST", body: { pin: $("#pin").value }, authErr: false });
-    token = r.token; sessionStorage.setItem("jb_ptoken", token);
-    boot();
-  } catch (e) { $("#loginErr").textContent = "Code incorrect. Réessayez."; }
-};
-$("#pin").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#loginBtn").click(); });
+if ($("#loginBtn")) {
+  $("#loginBtn").onclick = async () => {
+    $("#loginErr").textContent = "";
+    try {
+      const r = await api("/api/parent/login", { method: "POST", body: { pin: $("#pin").value }, authErr: false });
+      token = r.token; sessionStorage.setItem("jb_ptoken", token);
+      boot();
+    } catch (e) { $("#loginErr").textContent = T("login_err"); }
+  };
+  $("#pin").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#loginBtn").click(); });
+}
 
-/* ---------------- dashboard ---------------- */
+/* ---------------- boot & enfants ---------------- */
 async function boot() {
   $("#login").style.display = "none";
   $("#dash").style.display = "block";
   $("#refreshBtn").onclick = loadAll;
   $("#logoutBtn").onclick = logout;
   $("#readNotifBtn").onclick = async () => { await api("/api/parent/notifications/read", { method: "POST" }); loadAll(); };
-  $("#unlockBtn").onclick = async () => { await api("/api/parent/unlock", { method: "POST" }); loadAll(); };
+  $("#unlockBtn").onclick = async () => { await api("/api/parent/unlock" + qs(), { method: "POST" }); loadAll(); };
+  window.I18N.applyStatic($("#dash"));
+  await loadChildren();
+  buildSelector();
   await loadAll();
 }
 
+async function loadChildren() {
+  CHILDREN = await api("/api/parent/children");
+  if (CHILDREN.length && (!CHILD || !CHILDREN.find((c) => c.id === CHILD))) CHILD = CHILDREN[0].id;
+}
+
+function buildSelector() {
+  const old = $("#childSel");
+  if (old) old.remove();
+  const sel = el('<select id="childSel" style="max-width:220px"></select>');
+  CHILDREN.forEach((c) => {
+    const o = el(`<option value="${esc(c.id)}">${c.emoji} ${esc(c.display_name)} · ${c.age_years} 🇫🇷${c.lang !== "fr" ? " · 🌍" + c.lang.toUpperCase() : ""}</option>`);
+    if (c.id === CHILD) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = async () => { CHILD = sel.value; TREE = null; await loadAll(); };
+  $(".topbar").insertBefore(sel, $(".topbar").children[1] || null);
+}
+
+/* ---------------- cartes ---------------- */
 async function loadAll() {
-  const ov = await api("/api/parent/overview");
+  const ov = await api("/api/parent/overview" + qs() + "&lang=" + window.I18N.get());
+  TREE = await api("/api/parent/tree" + qs() + "&lang=" + window.I18N.get());
   renderAge(ov);
   renderToday(ov);
+  renderSettings(ov);
+  renderEval();
   renderMastery(ov);
   renderNotifs(ov);
   renderConsents(ov);
+  renderChildren();
   await renderQuestions();
   await renderAudit();
 }
 
-/* Âge & phase + politique */
 function renderAge(ov) {
   const b = $("#c-age .body"); b.innerHTML = "";
   const a = ov.age;
   b.appendChild(el(`<div>
-    <div class="kv"><span>Âge exact</span><b>${a.years} ans ${a.months} mois</b></div>
-    <div class="kv"><span>Phase</span><b>${a.phase} — ${a.phase_label}</b></div>
-    <div class="kv"><span>Naissance</span><b>03/09/2022</b></div>
+    <div class="kv"><span>${T("age_exact")}</span><b>${a.years} ans ${a.months} mois</b></div>
+    <div class="kv"><span>${T("phase")}</span><b>${a.phase} — ${a.phase_label}</b></div>
   </div>`));
   b.appendChild(el(`<hr style="border:none;border-top:1px solid var(--line);margin:10px 0">`));
-  b.appendChild(el(`<div class="f">Durée max par session (min)</div>`));
+  b.appendChild(el(`<label class="f">${T("session_min")}</label>`));
   const inMin = el(`<input type="number" min="1" max="120" value="${ov.policy.session_max_minutes}">`);
-  b.appendChild(el(`<div class="f">Sessions max par jour</div>`));
+  b.appendChild(el(`<label class="f">${T("sessions_day")}</label>`));
   const inSess = el(`<input type="number" min="1" max="10" value="${ov.policy.sessions_per_day_max}">`);
   b.appendChild(inMin); b.appendChild(inSess);
-  const save = el('<button class="btn" style="margin-top:10px">💾 Enregistrer la politique</button>');
+  const save = el(`<button class="btn" style="margin-top:10px">${T("save_policy")}</button>`);
   save.onclick = async () => {
-    await api("/api/parent/policy", { method: "PATCH", body: { session_max_minutes: +inMin.value, sessions_per_day_max: +inSess.value } });
+    await api("/api/parent/policy" + qs(), { method: "PATCH", body: { session_max_minutes: +inMin.value, sessions_per_day_max: +inSess.value } });
     loadAll();
   };
   b.appendChild(save);
 }
 
-/* Aujourd'hui & bien-être */
 function renderToday(ov) {
   const b = $("#c-today .body"); b.innerHTML = "";
   const mins = (ov.today.screen_seconds / 60).toFixed(1);
   const lockBadge = ov.lock.locked
-    ? `<span class="badge bad">🔒 Verrouillé jusqu'à ${fmtDate(ov.lock.locked_until)}</span>`
-    : `<span class="badge ok">✅ Accès libre</span>`;
+    ? `<span class="badge bad">${T("locked_until", { t: fmtDate(ov.lock.locked_until) })}</span>`
+    : `<span class="badge ok">${T("free")}</span>`;
   b.appendChild(el(`<div>
-    <div class="kv"><span>Temps d'écran</span><b>${mins} min</b></div>
-    <div class="kv"><span>Sessions</span><b>${ov.today.sessions} / ${ov.today.sessions_cap}</b></div>
-    <div class="kv"><span>Échecs d'identification</span><b>${ov.lock.failed_count}</b></div>
-    <div class="kv"><span>Statut d'accès</span><b>${lockBadge}</b></div>
+    <div class="kv"><span>${T("screen_time")}</span><b>${mins} min</b></div>
+    <div class="kv"><span>${T("sessions")}</span><b>${ov.today.sessions} / ${ov.today.sessions_cap}</b></div>
+    <div class="kv"><span>${T("id_fails")}</span><b>${ov.lock.failed_count}</b></div>
+    <div class="kv"><span>${T("access")}</span><b>${lockBadge}</b></div>
   </div>`));
 }
 
-/* Compétences */
+/* 🌍 Réglages d'adaptation : langue des cours, attention, soutien langage */
+function renderSettings(ov) {
+  let card = $("#c-settings");
+  if (!card) {
+    card = el(`<div class="card" id="c-settings"><h2>${T("c_settings")}</h2><div class="body"></div></div>`);
+    $(".cards").insertBefore(card, $(".cards").children[2] || null);
+  }
+  const b = $("#c-settings .body"); b.innerHTML = "";
+  const c = ov.child || { lang: "fr", attention: "normal", speech_support: false };
+
+  b.appendChild(el(`<label class="f">${T("lang_child")}</label>`));
+  const selLang = el(`<select>
+    <option value="fr">🇫🇷 Français</option>
+    <option value="en">🇬🇧 English</option>
+    <option value="es">🇪🇸 Español</option></select>`);
+  selLang.value = c.lang;
+
+  b.appendChild(el(`<label class="f">${T("attention")}</label>`));
+  const selAtt = el(`<select>
+    <option value="normal">${T("attnormal")}</option>
+    <option value="courte">${T("attcourte")}</option></select>`);
+  selAtt.value = c.attention;
+
+  const chk = el(`<label class="switch" style="margin-top:10px"><input type="checkbox"> <span>🗣️ ${T("speech")}</span></label>`);
+  chk.querySelector("input").checked = !!c.speech_support;
+
+  const ok = el('<p class="eval-flash"></p>');
+  const save = el(`<button class="btn" style="margin-top:12px">${T("save_settings")}</button>`);
+  save.onclick = async () => {
+    ok.textContent = "";
+    await api(`/api/parent/children/${encodeURIComponent(CHILD)}`, {
+      method: "PATCH",
+      body: { lang: selLang.value, attention: selAtt.value, speech_support: chk.querySelector("input").checked },
+    });
+    ok.textContent = T("saved");
+    await loadChildren(); buildSelector();
+  };
+  b.appendChild(selLang); b.appendChild(selAtt); b.appendChild(chk); b.appendChild(save); b.appendChild(ok);
+}
+
+/* 🚀 Évaluation initiale : « elle sait déjà ! » — arbre complet cochable */
+function renderEval() {
+  let card = $("#c-eval");
+  if (!card) {
+    card = el(`<div class="card" id="c-eval" style="grid-column:1/-1"><h2>${T("c_eval")}</h2><div class="body"></div></div>`);
+    $(".cards").insertBefore(card, $(".cards").children[3] || null);
+  }
+  const b = $("#c-eval .body"); b.innerHTML = "";
+  b.appendChild(el(`<p style="font-size:13px;color:var(--muted)">${T("eval_help")}</p>`));
+  const flash = el('<p class="eval-flash"></p>');
+
+  const wrap = el('<div class="scrollbox" style="max-height:none"></div>');
+  TREE.domains.forEach((d) => {
+    const sec = el(`<div class="tree-domain"><h3>${esc(d.domain_label)} (${d.skills.filter((s) => s.status === "mastered").length}/${d.skills.length})</h3></div>`);
+    d.skills.forEach((s) => {
+      const row = el(`<div class="tree-row">
+        <span>${s.emoji}</span>
+        <span class="nm"><b>${esc(s.label)}</b> <span class="lvl">niv. ${s.level}</span></span>
+        <span class="badge ${s.status}">${{ mastered: "✅", unlocked: "▶", locked: "🔒" }[s.status]}</span>
+      </div>`);
+      const btn = el(`<button class="mini-btn ${s.status === "mastered" ? "grey" : ""}">${s.status === "mastered" ? "↺" : T("eval_knows")}</button>`);
+      btn.title = s.status === "mastered" ? "reset" : "mastered";
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          const action = s.status === "mastered" ? "reset" : "mastered";
+          const r = await api("/api/parent/mastery" + qs(), { method: "POST", body: { skill_ids: [s.id], action } });
+          const n = r.updated.length + r.auto.length;
+          flash.textContent = T("eval_done", { n, auto: r.auto.length ? T("eval_auto", { a: r.auto.length }) : "" });
+          await loadAll();
+        } catch (e2) { btn.disabled = false; }
+      };
+      row.appendChild(btn);
+      sec.appendChild(row);
+    });
+    wrap.appendChild(sec);
+  });
+  b.appendChild(wrap);
+  b.appendChild(flash);
+}
+
 function renderMastery(ov) {
   const b = $("#c-mastery .body"); b.innerHTML = "";
-  b.appendChild(el(`<div class="kv"><span>Progression globale</span><b>${ov.progress_pct} % (${ov.mastered_count}/${ov.skills_total})</b></div>`));
-  ov.mastery.forEach((s) => {
-    b.appendChild(el(`<div style="padding:7px 0; border-bottom:1px dashed var(--line)">
-      <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:5px">
-        <span>${s.emoji} <b>${esc(s.label)}</b> <span style="color:var(--muted)">(${esc(s.domain)})</span></span>
-        <span>${s.mastered ? "✅" : Math.round(s.mastery * 100) + " %"}</span>
-      </div>
-      <div class="pbar"><div class="pfill" style="width:${Math.round(s.mastery * 100)}%"></div></div>
-      <div style="font-size:12px;color:var(--muted);margin-top:3px">série : ${s.streak} · prochaine révision : ${fmtDate(s.next_review_at)}</div>
-    </div>`));
-  });
+  b.appendChild(el(`<div class="kv"><span>${T("global_progress")}</span><b>${ov.progress_pct} % (${ov.mastered_count}/${ov.skills_total})</b></div>`));
+  const domains = [...new Set(ov.mastery.map((s) => s.domain_label))];
+  const sel = el(`<select style="max-width:240px;margin-bottom:6px"><option value="">${T("filter_domain")}</option>${domains.map((d) => `<option>${esc(d)}</option>`).join("")}</select>`);
+  const list = el("<div></div>");
+  function draw(filter) {
+    list.innerHTML = "";
+    ov.mastery.filter((s) => !filter || s.domain_label === filter).forEach((s) => {
+      list.appendChild(el(`<div style="padding:7px 0; border-bottom:1px dashed var(--line)">
+        <div style="display:flex; justify-content:space-between; font-size:14px; margin-bottom:5px">
+          <span>${s.emoji} <b>${esc(s.label)}</b> <span style="color:var(--muted)">(${esc(s.domain_label)})</span></span>
+          <span>${{ mastered: "✅", unlocked: "▶", locked: "🔒" }[s.status] || ""} ${s.mastered ? "" : Math.round(s.mastery * 100) + " %"}</span>
+        </div>
+        <div class="pbar"><div class="pfill" style="width:${Math.round(s.mastery * 100)}%"></div></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">${T("series_review", { s: s.streak, d: fmtDate(s.next_review_at) })}</div>
+      </div>`));
+    });
+  }
+  sel.onchange = () => draw(sel.value);
+  draw("");
+  b.appendChild(sel); b.appendChild(list);
 }
 
-/* Alertes */
 function renderNotifs(ov) {
   const b = $("#c-notif .body"); b.innerHTML = "";
-  const list = ov.audit_tail.filter(() => false); // placeholder；真正的未读在 overview.notifications_unread
-  b.appendChild(el(`<div class="kv"><span>Alertes non lues</span><b>${ov.notifications_unread}</b></div>`));
-  const evts = ov.audit_tail.filter((e) => ["identity.locked", "wellbeing.veto", "wellbeing.daily_limit", "learning.milestone"].includes(e.type)).slice(0, 8);
-  if (evts.length === 0) b.appendChild(el('<p style="color:var(--muted);font-size:13px">Aucune alerte récente. Tout va bien 💛</p>'));
-  evts.forEach((e) => b.appendChild(el(`<div class="kv"><span>${NOTIF_LABELS[e.type] || e.type}</span><b>${fmtDate(e.ts)}</b></div>`)));
+  b.appendChild(el(`<div class="kv"><span>${T("unread")}</span><b>${ov.notifications_unread}</b></div>`));
+  const evts = ov.audit_tail.filter((e) => NOTIF_KEYS[e.type]).slice(0, 8);
+  if (evts.length === 0) b.appendChild(el(`<p style="color:var(--muted);font-size:13px">${T("no_alert")}</p>`));
+  evts.forEach((e) => b.appendChild(el(`<div class="kv"><span>${notifLabel(e.type)}</span><b>${fmtDate(e.ts)}</b></div>`)));
 }
 
-/* Consentements */
 function renderConsents(ov) {
   const b = $("#c-consents .body"); b.innerHTML = "";
   ov.consents.forEach((c) => {
-    const row = el(`<label class="switch"><input type="checkbox" ${c.granted ? "checked" : ""}> <span>${esc(CONSENT_LABELS[c.scope] || c.scope)} <span style="color:var(--muted)">v${c.version}</span></span></label>`);
+    const lbl = CONSENT_LABELS[c.scope];
+    const txt = lbl ? (lbl[window.I18N.get()] || lbl.fr) : c.scope;
+    const row = el(`<label class="switch"><input type="checkbox" ${c.granted ? "checked" : ""}> <span>${esc(txt)} <span style="color:var(--muted)">v${c.version}</span></span></label>`);
     row.querySelector("input").onchange = async (e) => {
       await api("/api/parent/consents", { method: "POST", body: { scope: c.scope, granted: e.target.checked } });
       loadAll();
     };
     b.appendChild(row);
   });
-  b.appendChild(el('<p style="font-size:12px;color:var(--muted);margin-top:8px">Révoquer « Éducation » bloque immédiatement toute nouvelle session.</p>'));
+  b.appendChild(el(`<p style="font-size:12px;color:var(--muted);margin-top:8px">${T("consent_note")}</p>`));
 }
 
-/* Questions d'identification */
+function renderChildren() {
+  let card = $("#c-children");
+  if (!card) {
+    card = el(`<div class="card" id="c-children"><h2>${T("c_children")}</h2><div class="body"></div></div>`);
+    $(".cards").insertBefore(card, $(".cards").children[2] || null);
+  }
+  const b = $("#c-children .body"); b.innerHTML = "";
+  CHILDREN.forEach((c) => {
+    b.appendChild(el(`<div class="kv"><span>${c.emoji} <b>${esc(c.display_name)}</b></span><b>${c.age_years} ans · ${c.phase} · 🌍${c.lang.toUpperCase()}${c.attention === "courte" ? " · ⚡" : ""}${c.speech_support ? " · 🗣️" : ""}</b></div>`));
+  });
+  b.appendChild(el(`<h2 style="margin-top:14px">${T("add_child")}</h2>`));
+  const fName = el(`<input placeholder="${esc(T("firstname"))}" maxlength="40">`);
+  const fDob = el('<input type="date" max="' + new Date().toISOString().slice(0, 10) + '">');
+  const fEmoji = el('<input placeholder="🦊" maxlength="4">');
+  const err = el('<p style="color:var(--bad);font-size:13px;margin-top:6px"></p>');
+  const ok = el('<p class="eval-flash"></p>');
+  b.appendChild(el(`<label class="f">${T("firstname")}</label>`)); b.appendChild(fName);
+  b.appendChild(el(`<label class="f">${T("dob")}</label>`)); b.appendChild(fDob);
+  b.appendChild(el(`<label class="f">${T("emoji")}</label>`)); b.appendChild(fEmoji);
+  const add = el(`<button class="btn" style="margin-top:10px">${T("create_profile")}</button>`);
+  add.onclick = async () => {
+    err.textContent = ""; ok.textContent = "";
+    try {
+      const r = await api("/api/parent/children", { method: "POST", body: { display_name: fName.value, dob: fDob.value, emoji: fEmoji.value || "⭐" } });
+      ok.textContent = T("profile_created", { n: r.display_name, e: r.emoji });
+      await loadChildren(); buildSelector(); CHILD = r.id; buildSelector(); await loadAll();
+    } catch (e2) { err.textContent = (e2.body && e2.body.detail) || T("check_fields"); }
+  };
+  b.appendChild(add); b.appendChild(ok); b.appendChild(err);
+}
+
 async function renderQuestions() {
   const b = $("#c-questions .body"); b.innerHTML = "";
-  const qs = await api("/api/parent/questions");
-  const table = el(`<table><thead><tr><th></th><th>Question</th><th>Modalité</th><th>Actif</th></tr></thead><tbody></tbody></table>`);
-  qs.forEach((q) => {
+  const qsList = await api("/api/parent/questions" + qs());
+  const table = el(`<table><thead><tr><th></th><th>❓</th><th></th><th>✓</th></tr></thead><tbody></tbody></table>`);
+  qsList.forEach((q) => {
     const tr = el(`<tr>
       <td>${q.prompt.emoji || "🔐"}</td>
       <td>${esc(q.prompt.text)}</td>
-      <td>${q.modality === "voice" ? "🎤 voix" : "👆 image"}</td>
+      <td>${q.modality === "voice" ? T("q_modality_voice") : T("q_modality_image")}</td>
       <td><input type="checkbox" ${q.active ? "checked" : ""}></td>
     </tr>`);
     tr.querySelector("input").onchange = async (e) => {
-      await api(`/api/parent/questions/${q.id}`, { method: "PATCH", body: { active: e.target.checked } });
+      await api(`/api/parent/questions/${q.id}` + qs(), { method: "PATCH", body: { active: e.target.checked } });
     };
     table.querySelector("tbody").appendChild(tr);
   });
-  b.appendChild(el(`<div class="kv"><span>Questions actives</span><b>${qs.filter((q) => q.active).length}</b></div>`));
+  b.appendChild(el(`<div class="kv"><span>${T("q_active")}</span><b>${qsList.filter((q) => q.active).length}</b></div>`));
   b.appendChild(table);
 
-  b.appendChild(el('<h2 style="margin-top:16px">➕ Ajouter une question</h2>'));
-  const fText = el('<input placeholder="Texte de la question (ex : Comment s\'appelle ton doudou ?)">');
-  const fEmoji = el('<input placeholder="Emoji (ex : 🧸)" maxlength="4">');
-  const fMod = el('<select><option value="voice">🎤 voix</option><option value="image_tap">👆 image</option></select>');
-  const fOpts = el('<textarea rows="3" placeholder="Options (si image) — une par ligne : id|emoji|label\nchat|🐱|chat"></textarea>');
-  const fAns = el('<textarea rows="2" placeholder="Réponses acceptées — une par ligne (variantes tolérées)\ndoudou\nmon doudou"></textarea>');
-  b.appendChild(el('<label class="f">Question</label>')); b.appendChild(fText);
-  b.appendChild(el('<label class="f">Emoji</label>')); b.appendChild(fEmoji);
-  b.appendChild(el('<label class="f">Modalité</label>')); b.appendChild(fMod);
-  b.appendChild(el('<label class="f">Options (image_tap)</label>')); b.appendChild(fOpts);
-  b.appendChild(el('<label class="f">Réponses acceptées</label>')); b.appendChild(fAns);
-  const add = el('<button class="btn" style="margin-top:10px">💾 Ajouter (hachées côté serveur)</button>');
+  b.appendChild(el(`<h2 style="margin-top:16px">${T("q_add")}</h2>`));
+  const fText = el(`<input placeholder="${esc(T("q_text"))}">`);
+  const fEmoji = el('<input placeholder="🧸" maxlength="4">');
+  const fMod = el(`<select><option value="voice">${T("q_modality_voice")}</option><option value="image_tap">${T("q_modality_image")}</option></select>`);
+  const fOpts = el(`<textarea rows="3" placeholder="${esc(T("q_options"))}\nchat|🐱|chat"></textarea>`);
+  const fAns = el(`<textarea rows="2" placeholder="${esc(T("q_answers"))}"></textarea>`);
+  b.appendChild(fText); b.appendChild(fEmoji); b.appendChild(fMod); b.appendChild(fOpts); b.appendChild(fAns);
+  const add = el(`<button class="btn" style="margin-top:10px">${T("q_add_btn")}</button>`);
   const err = el('<p style="color:var(--bad);font-size:13px;margin-top:6px"></p>');
   add.onclick = async () => {
     err.textContent = "";
@@ -184,33 +340,32 @@ async function renderQuestions() {
       ? fOpts.value.trim().split("\n").map((l) => { const [id, emoji, label] = l.split("|").map((x) => (x || "").trim()); return { id, emoji, label }; })
       : null;
     try {
-      await api("/api/parent/questions", {
+      await api("/api/parent/questions" + qs(), {
         method: "POST",
         body: { modality: fMod.value, text: fText.value, emoji: fEmoji.value || "🔐", options, accepted_answers: fAns.value.split("\n").map((s) => s.trim()).filter(Boolean) },
       });
       renderQuestions();
-    } catch (e2) { err.textContent = (e2.body && e2.body.detail) || "Erreur : vérifiez les champs."; }
+    } catch (e2) { err.textContent = (e2.body && e2.body.detail) || T("check_fields"); }
   };
   b.appendChild(add); b.appendChild(err);
 }
 
-/* Audit */
 async function renderAudit(typePrefix) {
   const b = $("#c-audit .body"); b.innerHTML = "";
   const sel = el(`<select style="max-width:260px">
-    <option value="">Tous les événements</option>
-    <option value="identity">Identifications</option>
-    <option value="learning">Apprentissage</option>
-    <option value="wellbeing">Bien-être</option>
-    <option value="session">Sessions</option>
-    <option value="parent">Actions parents</option>
-    <option value="rgpd">RGPD / consentements</option>
+    <option value="">${T("all_events")}</option>
+    <option value="identity">${T("ev_identity")}</option>
+    <option value="learning">${T("ev_learning")}</option>
+    <option value="wellbeing">${T("ev_wellbeing")}</option>
+    <option value="session">${T("ev_session")}</option>
+    <option value="parent">${T("ev_parent")}</option>
+    <option value="rgpd">${T("ev_gdpr")}</option>
   </select>`);
   sel.value = typePrefix || "";
   sel.onchange = () => renderAudit(sel.value || null);
   b.appendChild(sel);
   const events = await api("/api/parent/audit?limit=80" + (typePrefix ? `&type_prefix=${encodeURIComponent(typePrefix)}` : ""));
-  const table = el(`<table style="margin-top:10px"><thead><tr><th>Heure</th><th>Acteur</th><th>Événement</th><th>Détails</th></tr></thead><tbody></tbody></table>`);
+  const table = el(`<table style="margin-top:10px"><thead><tr><th>🕒</th><th></th><th></th><th></th></tr></thead><tbody></tbody></table>`);
   events.forEach((e) => {
     table.querySelector("tbody").appendChild(el(`<tr>
       <td class="mono">${fmtDate(e.ts)}</td>

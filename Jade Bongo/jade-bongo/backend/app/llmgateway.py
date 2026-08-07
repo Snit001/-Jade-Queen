@@ -13,19 +13,8 @@ import re
 from typing import Any
 
 # Banque de répliques validées — ton Phase 1 (3 ans), bienveillant, encourageant.
-_ENCOURAGE_SUCCESS = [
-    "Bravo {name} ! 🎉", "Génial {name} ! ⭐", "Tu es formidable {name} ! 💪",
-    "Super {name} ! Quelle championne ! 🏆", "Yes ! Tu l'as trouvé {name} ! 🌟",
-    "Magnifique {name} ! Continue comme ça ! 🚀",
-]
-_ENCOURAGE_RETRY = [
-    "Essaie encore {name} ! 😊", "Presque {name} ! On réessaie ensemble ? 🌟",
-    "Ce n'est pas grave {name}, on apprend ! 💛", "Tu vas y arriver {name} ! 🌈",
-]
-_SESSION_END = [
-    "C'est l'heure de la pause {name} ! 🌙 À très vite !",
-    "Bravo pour aujourd'hui {name} ! Maintenant, on va jouer dehors ! 🌳",
-]
+# v2.0 : trilingue (fr/en/es), voir strings.ENCOURAGE.
+from .strings import ENCOURAGE as _POOLS, norm_lang as _norm_lang
 
 # Garde-fou sortie : tout texte destiné à Jade est nettoyé et borné.
 _FORBIDDEN = re.compile(r"(http|www\.|acheter|abonne)", re.IGNORECASE)
@@ -40,12 +29,13 @@ def safety_filter(text: str) -> str:
     return cleaned
 
 
-def encourage(kind: str, name: str = "Jade") -> dict[str, Any]:
-    """Réplique du Mentor — mode local (contenus validés), filtrée à la sortie."""
-    pools = {"success": _ENCOURAGE_SUCCESS, "retry": _ENCOURAGE_RETRY, "session_end": _SESSION_END}
-    pool = pools.get(kind, _ENCOURAGE_SUCCESS)
+def encourage(kind: str, name: str = "Jade", lang: str = "fr") -> dict[str, Any]:
+    """Réplique du Mentor — mode local (contenus validés), filtrée à la sortie,
+    servie dans la langue de l'enfant."""
+    pools = _POOLS.get(_norm_lang(lang), _POOLS["fr"])
+    pool = pools.get(kind, pools["success"])
     text = safety_filter(random.choice(pool).format(name=name))
-    return {"text": text, "provider": "local-curated", "filtered": True}
+    return {"text": text, "provider": "local-curated", "filtered": True, "lang": _norm_lang(lang)}
 
 
 def chat_safe(prompt: str, *, age_years: int) -> dict[str, Any]:

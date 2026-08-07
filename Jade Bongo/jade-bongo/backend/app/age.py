@@ -53,6 +53,10 @@ POLICIES: dict[str, dict[str, Any]] = {
 }
 
 
+# Ordre des phases : utilisé pour déverrouiller les contenus selon la phase de l'enfant.
+PHASE_RANK: dict[str, int] = {"PHASE_1": 1, "PHASE_2": 2, "PHASE_3": 3, "PHASE_4": 4}
+
+
 @dataclass(frozen=True)
 class AgeInfo:
     years: int

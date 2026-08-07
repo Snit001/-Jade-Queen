@@ -21,8 +21,8 @@ BOOT_AT = iso()
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Jade Bɔngɔ́",
-        version="1.0.0",
-        description="Programme d'éducation dédié à Jade Queen MBO — identification, parcours étape par étape, bien-être, transparence parents.",
+        version="2.0.0",
+        description="Programme d'éducation dédié à Jade Queen MBO — identification, parcours étape par étape SANS plafond d'âge, trilingue (fr/en/es), bien-être, transparence parents.",
     )
 
     # Initialisation base + seed (idempotent)

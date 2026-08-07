@@ -92,13 +92,33 @@ def can_start_session(con: sqlite3.Connection, child_id: str, policy: dict[str, 
         raise SessionDenied("daily_limit")
 
 
+def child_profile(con: sqlite3.Connection, child_id: str) -> dict[str, Any]:
+    """Profil d'adaptation de l'enfant (langue, attention, soutien langage)."""
+    row = q_one(con, "SELECT lang, attention, speech_support FROM children WHERE id = ?", (child_id,))
+    if row is None:
+        return {"lang": "fr", "attention": "normal", "speech_support": False}
+    return {"lang": row["lang"] or "fr", "attention": row["attention"] or "normal",
+            "speech_support": bool(row["speech_support"])}
+
+
 def issue_session(con: sqlite3.Connection, child_id: str, policy: dict[str, Any]) -> dict[str, Any]:
-    max_seconds = int(policy["session_max_minutes"]) * 60
+    max_minutes = int(policy["session_max_minutes"])
+
+    # 🧠 Profil d'attention « courte » : des sessions PLUS COURTES (~2/3),
+    # jamais plus longues. Le plafond de contenu reste ouvert — seule
+    # la durée d'exposition s'adapte (bien-être, non négociable dans l'autre sens).
+    profile = child_profile(con, child_id)
+    if profile["attention"] == "courte":
+        max_minutes = max(5, (2 * max_minutes) // 3)
+        audit(con, "wellbeing.attention_profile", child_id=child_id,
+              payload={"attention": "courte", "session_max_minutes": max_minutes})
+
+    max_seconds = max_minutes * 60
     token = new_token()
     session_id = new_token()[:12]
     con.execute(
-        """INSERT INTO sessions (id, child_id, token, started_at, max_seconds, status, day)
-           VALUES (?,?,?,?,?,?,?)""",
+        """INSERT INTO sessions (id, child_id, token, started_at, max_seconds, status, day, consec_fails)
+           VALUES (?,?,?,?,?,?,?,0)""",
         (session_id, child_id, token, iso(), max_seconds, "active", today_str()),
     )
     audit(con, "session.started", child_id=child_id, payload={"session_id": session_id, "max_seconds": max_seconds})
@@ -137,6 +157,7 @@ def session_status(con: sqlite3.Connection, token: str) -> dict[str, Any] | None
             "remaining_seconds": 0,
             "elapsed_seconds": elapsed,
             "session_id": row["id"],
+            "child_id": row["child_id"],
         }
 
     return {
@@ -145,6 +166,7 @@ def session_status(con: sqlite3.Connection, token: str) -> dict[str, Any] | None
         "elapsed_seconds": elapsed,
         "max_seconds": max_seconds,
         "session_id": row["id"],
+        "child_id": row["child_id"],
     }
 
 

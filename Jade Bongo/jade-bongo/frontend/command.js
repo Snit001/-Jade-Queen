@@ -1,14 +1,16 @@
 "use strict";
-/* Jade Bɔngɔ́ — Command Center « Mission Jade » (rafraîchissement 5 s) */
+/* Jade Bɔngɔ́ — Command Center « Mission » v1.1 multi-enfants (rafraîchissement 5 s) */
 
 const $ = (s) => document.querySelector(s);
 let token = sessionStorage.getItem("jb_ptoken") || null;
 let refresher = null;
+let CHILD = null;
 
 function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function fmtDur(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`; }
 function fmtTs(ts) { return ts ? new Date(ts).toLocaleTimeString("fr-FR") : "—"; }
+function qs() { return CHILD ? "?child_id=" + encodeURIComponent(CHILD) : ""; }
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -22,22 +24,32 @@ async function api(path, opts = {}) {
 }
 function logout() { sessionStorage.removeItem("jb_ptoken"); token = null; clearInterval(refresher); location.reload(); }
 
-$("#loginBtn").onclick = async () => {
-  $("#loginErr").textContent = "";
-  try {
-    const r = await fetch("/api/parent/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: $("#pin").value }) });
-    if (!r.ok) throw new Error("bad");
-    const data = await r.json();
-    token = data.token; sessionStorage.setItem("jb_ptoken", token);
-    boot();
-  } catch (e) { $("#loginErr").textContent = "Code incorrect."; }
-};
-$("#pin").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#loginBtn").click(); });
+if ($("#loginBtn")) {
+  $("#loginBtn").onclick = async () => {
+    $("#loginErr").textContent = "";
+    try {
+      const r = await fetch("/api/parent/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: $("#pin").value }) });
+      if (!r.ok) throw new Error("bad");
+      const data = await r.json();
+      token = data.token; sessionStorage.setItem("jb_ptoken", token);
+      boot();
+    } catch (e) { $("#loginErr").textContent = "Code incorrect."; }
+  };
+  $("#pin").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#loginBtn").click(); });
+}
 
-function boot() {
+async function boot() {
   $("#login").style.display = "none";
   $("#cmd").style.display = "block";
   $("#logoutBtn").onclick = logout;
+  const children = await api("/api/parent/children");
+  if (children.length) CHILD = children[0].id;
+  if (children.length > 1) {
+    const sel = el('<select id="childSel" style="max-width:200px; background:#0e3a5d; color:#e2e8f0; border-color:#1e3a5f"></select>');
+    children.forEach((c) => { const o = el(`<option value="${esc(c.id)}">${c.emoji} ${esc(c.display_name)}</option>`); if (c.id === CHILD) o.selected = true; sel.appendChild(o); });
+    sel.onchange = () => { CHILD = sel.value; tick(); };
+    $(".cmd-head").insertBefore(sel, $("#uptime"));
+  }
   tick();
   refresher = setInterval(tick, 5000);
 }
@@ -50,7 +62,7 @@ const EVENT_ICONS = {
 
 async function tick() {
   let m;
-  try { m = await api("/api/command/mission"); } catch (e) { if (e.status === 401) logout(); return; }
+  try { m = await api("/api/command/mission" + qs()); } catch (e) { if (e.status === 401) logout(); return; }
   $("#uptime").textContent = "uptime " + fmtDur(m.uptime_seconds);
 
   const k = m.kpi;

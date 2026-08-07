@@ -177,7 +177,39 @@ def session() -> Iterator[sqlite3.Connection]:
 
 def init_db(con: sqlite3.Connection) -> None:
     con.executescript(SCHEMA)
+    _migrate(con)
     con.commit()
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    """Migrations douces sur bases existantes (aucune perte de données)."""
+    children_cols = [r[1] for r in con.execute("PRAGMA table_info(children)")]
+    if "emoji" not in children_cols:
+        con.execute("ALTER TABLE children ADD COLUMN emoji TEXT NOT NULL DEFAULT '⭐'")
+    # v2.0 — trilingue + profils d'adaptation (attention, soutien langage)
+    if "lang" not in children_cols:
+        con.execute("ALTER TABLE children ADD COLUMN lang TEXT NOT NULL DEFAULT 'fr'")
+    if "attention" not in children_cols:
+        con.execute("ALTER TABLE children ADD COLUMN attention TEXT NOT NULL DEFAULT 'normal'")
+    if "speech_support" not in children_cols:
+        con.execute("ALTER TABLE children ADD COLUMN speech_support INTEGER NOT NULL DEFAULT 0")
+
+    skills_cols = [r[1] for r in con.execute("PRAGMA table_info(skills)")]
+    # v2.0 — noms trilingues + niveau de profondeur dans le domaine
+    if "names_json" not in skills_cols:
+        con.execute("ALTER TABLE skills ADD COLUMN names_json TEXT")
+    if "level" not in skills_cols:
+        con.execute("ALTER TABLE skills ADD COLUMN level INTEGER NOT NULL DEFAULT 1")
+
+    mastery_cols = [r[1] for r in con.execute("PRAGMA table_info(mastery)")]
+    # v2.0 — compteur d'essais : mesure de la VITESSE d'apprentissage (accélération)
+    if "attempts" not in mastery_cols:
+        con.execute("ALTER TABLE mastery ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
+
+    sessions_cols = [r[1] for r in con.execute("PRAGMA table_info(sessions)")]
+    # v2.0 — échecs consécutifs : propose une pause apaisante avant la frustration
+    if "consec_fails" not in sessions_cols:
+        con.execute("ALTER TABLE sessions ADD COLUMN consec_fails INTEGER NOT NULL DEFAULT 0")
 
 
 def q_one(con: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:

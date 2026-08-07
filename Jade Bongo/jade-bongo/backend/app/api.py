@@ -1,13 +1,15 @@
-"""API REST de Jade Bɔngɔ́ (FastAPI).
+"""API REST de Jade Bɔngɔ́ (FastAPI) — v2.0 « plafond ouvert » : trilingue,
+graphe sans limite d'âge, accélération, évaluation initiale, profils d'adaptation.
 
 Périmètres de sécurité :
-- /api/identity/*, /api/age, /api/health  → public (mais aucune donnée profil)
+- /api/identity/*, /api/children, /api/age, /api/health → public (payload minimal, aucune donnée sensible)
 - /api/session/*, /api/learning/*, /api/mentor/* → jeton de session enfant (via identification)
 - /api/parent/*, /api/command/* → jeton parent (via PIN)
 
-Note transactionnelle : toute exception HTTP est levée APRÈS la fermeture du
-contexte de base de données, afin que les écritures (verrous, vetos, audits)
-soient TOUJOURS persistées — y compris en cas d'erreur.
+Multi-enfants : chaque enfant a son âge-moteur, ses questions, sa progression,
+ses verrous et ses limites — parfaitement isolés des autres.
+Note transactionnelle : les exceptions HTTP sont levées APRÈS commit, afin que
+verrous, vetos et audits soient TOUJOURS persistés — même en cas d'erreur.
 """
 from __future__ import annotations
 
@@ -19,7 +21,8 @@ from pydantic import BaseModel, Field
 from . import curriculum, llmgateway, parental, portier, wellbeing
 from .audit import mark_notifications_read, recent_audit
 from .age import compute_age
-from .db import q_one, session as db_session
+from .db import q_all, q_one, session as db_session
+from .strings import norm_lang
 
 router = APIRouter(prefix="/api")
 T = TypeVar("T")
@@ -31,14 +34,23 @@ def _tx(fn: Callable[[Any], T]) -> T:
         return fn(con)
 
 
-def get_child_id() -> str:
-    row = _tx(lambda con: q_one(con, "SELECT id FROM children LIMIT 1"))
-    if row is None:
-        raise HTTPException(500, "Profil enfant non initialisé.")
-    return str(row["id"])
+def resolve_child_id(child_id: str | None) -> str:
+    """Enfant explicite (multi-profils) ou premier profil par défaut."""
+    def work(con: Any) -> str:
+        if child_id:
+            row = q_one(con, "SELECT id FROM children WHERE id = ?", (child_id,))
+            if row is None:
+                raise HTTPException(404, "Enfant inconnu.")
+            return str(row["id"])
+        row = q_one(con, "SELECT id FROM children ORDER BY created_at LIMIT 1")
+        if row is None:
+            raise HTTPException(500, "Aucun profil enfant initialisé.")
+        return str(row["id"])
+    return _tx(work)
 
 
 def require_session_token(token: str) -> dict[str, Any]:
+    """Valide le jeton et renvoie le statut — avec child_id de la session."""
     if not token:
         raise HTTPException(401, "Jeton de session requis (identification d'abord).")
     status = _tx(lambda con: wellbeing.session_status(con, token))
@@ -107,17 +119,44 @@ class ConsentIn(BaseModel):
     granted: bool
 
 
+class ChildIn(BaseModel):
+    display_name: str = Field(min_length=1, max_length=40)
+    dob: str
+    emoji: str = "⭐"
+
+
+class ChildPatch(BaseModel):
+    lang: str | None = None
+    attention: str | None = None
+    speech_support: bool | None = None
+    display_name: str | None = None
+    emoji: str | None = None
+    dob: str | None = None
+
+
+class MasteryIn(BaseModel):
+    skill_ids: list[str] = Field(min_length=1, max_length=100)
+    action: str = "mastered"  # mastered | reset
+
+
 # ------------------------------------------------------------------- public
 
 @router.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "service": "Jade Bɔngɔ́", "version": "1.0.0"}
+    n = _tx(lambda con: int(q_one(con, "SELECT COUNT(*) AS n FROM skills")["n"]))
+    return {"status": "ok", "service": "Jade Bɔngɔ́", "version": "2.0.0",
+            "skills_total": n, "langs": ["fr", "en", "es"]}
 
 
 @router.get("/age")
-def age_public() -> dict[str, Any]:
-    age = compute_age().as_dict()
-    # Exposition minimale : pas de données personnelles sans identification.
+def age_public(child_id: str | None = None) -> dict[str, Any]:
+    cid = resolve_child_id(child_id)
+    row = _tx(lambda con: q_one(con, "SELECT dob FROM children WHERE id = ?", (cid,)))
+    profile = _tx(lambda con: wellbeing.child_profile(con, cid))
+    from datetime import date as _d
+    age = compute_age(dob=_d.fromisoformat(row["dob"])).as_dict()
+    age["child"] = profile  # langue + profil d'adaptation (rien de sensible)
+    # Exposition minimale : rien de personnel sans identification.
     age["policy"] = {
         "session_max_minutes": age["policy"]["session_max_minutes"],
         "identification": age["policy"]["identification"],
@@ -126,18 +165,25 @@ def age_public() -> dict[str, Any]:
     return age
 
 
+@router.get("/children")
+def children_public() -> list[dict[str, str]]:
+    """Sélecteur de profils (écran d'accueil) : prénom d'affichage + emoji, rien d'autre."""
+    rows = _tx(lambda con: q_all(con, "SELECT id, display_name, emoji FROM children ORDER BY created_at"))
+    return [{"id": r["id"], "display_name": r["display_name"], "emoji": r["emoji"]} for r in rows]
+
+
 # ------------------------------------------------------------------- identification
 
 @router.post("/identity/challenge")
-def identity_challenge() -> Any:
-    child_id = get_child_id()
+def identity_challenge(child_id: str | None = None) -> Any:
+    cid = resolve_child_id(child_id)
     error: HTTPException | None = None
     payload: Any = None
 
     def work(con: Any) -> None:
         nonlocal payload, error
         try:
-            payload = portier.create_challenge(con, child_id)
+            payload = portier.create_challenge(con, cid)
         except portier.Locked as exc:
             error = HTTPException(423, {"reason": "locked", "locked_until": exc.locked_until})
         except portier.BadRequest as exc:
@@ -197,20 +243,33 @@ def session_end(body: TokenIn) -> dict[str, Any]:
 # ------------------------------------------------------------------- apprentissage
 
 @router.get("/learning/step")
-def learning_step(token: str) -> dict[str, Any]:
-    require_session_token(token)
-    child_id = get_child_id()
-    return _tx(lambda con: curriculum.next_step(con, child_id))
+def learning_step(token: str, lang: str | None = None) -> dict[str, Any]:
+    """Prochaine étape — localisée. La langue effective = paramètre `lang`
+    (appareil de la famille multilingue) ou, à défaut, la langue du profil."""
+    session = require_session_token(token)
+
+    def work(con: Any) -> dict[str, Any]:
+        profile = wellbeing.child_profile(con, session["child_id"])
+        effective_lang = norm_lang(lang) if lang else profile["lang"]
+        step = curriculum.next_step(con, session["child_id"], effective_lang)
+        step["child"] = profile
+        step["child"]["lang"] = effective_lang
+        return step
+
+    return _tx(work)
 
 
 @router.post("/learning/outcome")
 def learning_outcome(body: OutcomeIn) -> dict[str, Any]:
-    require_session_token(body.token)
-    child_id = get_child_id()
+    session = require_session_token(body.token)
 
     def work(con: Any) -> dict[str, Any]:
         try:
-            return curriculum.record_outcome(con, child_id, body.skill_id, body.success)
+            return curriculum.record_outcome(
+                con, session["child_id"], body.skill_id, body.success,
+                session_id=session["session_id"],
+                lang=wellbeing.child_profile(con, session["child_id"])["lang"],
+            )
         except ValueError:
             raise HTTPException(404, "Compétence inconnue.") from None
 
@@ -219,8 +278,15 @@ def learning_outcome(body: OutcomeIn) -> dict[str, Any]:
 
 @router.get("/mentor/encourage")
 def mentor_encourage(token: str, mood: str = "success") -> dict[str, Any]:
-    require_session_token(token)
-    return llmgateway.encourage(mood if mood in ("success", "retry", "session_end") else "success")
+    session = require_session_token(token)
+
+    def who(con: Any) -> tuple[str, str]:
+        row = q_one(con, "SELECT display_name, lang FROM children WHERE id = ?", (session["child_id"],))
+        return (row["display_name"], row["lang"]) if row else ("", "fr")
+
+    name, lang = _tx(who)
+    kind = mood if mood in ("success", "retry", "session_end", "acceleration", "suggest_break") else "success"
+    return llmgateway.encourage(kind, name=name, lang=lang)
 
 
 # ------------------------------------------------------------------- parents
@@ -243,11 +309,74 @@ def parent_login(body: PinIn) -> dict[str, Any]:
     return payload
 
 
-@router.get("/parent/overview")
-def parent_overview(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+@router.get("/parent/children")
+def parent_children(authorization: str | None = Header(default=None)) -> list[dict[str, Any]]:
     require_parent_token(authorization)
-    child_id = get_child_id()
-    return _tx(lambda con: parental.overview(con, child_id))
+    return _tx(parental.children_list)
+
+
+@router.post("/parent/children")
+def parent_child_create(body: ChildIn, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    require_parent_token(authorization)
+
+    def work(con: Any) -> dict[str, Any]:
+        try:
+            return parental.create_child(con, body.display_name, body.dob, body.emoji)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    return _tx(work)
+
+
+@router.patch("/parent/children/{child_id}")
+def parent_child_patch(child_id: str, body: ChildPatch,
+                       authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """Réglages d'adaptation : langue des cours, profil d'attention, soutien langage."""
+    require_parent_token(authorization)
+
+    def work(con: Any) -> dict[str, Any]:
+        try:
+            return parental.patch_child(con, child_id, body.model_dump(exclude_none=True))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    return _tx(work)
+
+
+@router.get("/parent/tree")
+def parent_tree(child_id: str | None = None, lang: str | None = None,
+                authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """L'arbre complet des compétences (carte du ciel + évaluation initiale)."""
+    require_parent_token(authorization)
+    cid = resolve_child_id(child_id)
+    return _tx(lambda con: parental.tree(con, cid, norm_lang(lang) if lang else
+                                         wellbeing.child_profile(con, cid)["lang"]))
+
+
+@router.post("/parent/mastery")
+def parent_mastery(body: MasteryIn, child_id: str | None = None,
+                   authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """Évaluation initiale : « elle sait déjà ! » — marque les compétences
+    (avec la chaîne des prérequis, automatiquement) ou les remet à zéro."""
+    require_parent_token(authorization)
+    cid = resolve_child_id(child_id)
+
+    def work(con: Any) -> dict[str, Any]:
+        try:
+            return parental.mastery_bulk(con, cid, body.skill_ids, body.action)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    return _tx(work)
+
+
+@router.get("/parent/overview")
+def parent_overview(child_id: str | None = None, lang: str | None = None,
+                    authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    require_parent_token(authorization)
+    cid = resolve_child_id(child_id)
+    return _tx(lambda con: parental.overview(
+        con, cid, norm_lang(lang) if lang else wellbeing.child_profile(con, cid)["lang"]))
 
 
 @router.get("/parent/audit")
@@ -258,20 +387,22 @@ def parent_audit(limit: int = 100, type_prefix: str | None = None,
 
 
 @router.get("/parent/questions")
-def parent_questions(authorization: str | None = Header(default=None)) -> list[dict[str, Any]]:
+def parent_questions(child_id: str | None = None,
+                     authorization: str | None = Header(default=None)) -> list[dict[str, Any]]:
     require_parent_token(authorization)
-    child_id = get_child_id()
-    return _tx(lambda con: parental.questions_list(con, child_id))
+    cid = resolve_child_id(child_id)
+    return _tx(lambda con: parental.questions_list(con, cid))
 
 
 @router.post("/parent/questions")
-def parent_question_create(body: QuestionIn, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def parent_question_create(body: QuestionIn, child_id: str | None = None,
+                           authorization: str | None = Header(default=None)) -> dict[str, Any]:
     require_parent_token(authorization)
-    child_id = get_child_id()
+    cid = resolve_child_id(child_id)
 
     def work(con: Any) -> dict[str, Any]:
         try:
-            return parental.question_create(con, child_id, body.model_dump())
+            return parental.question_create(con, cid, body.model_dump())
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
@@ -279,14 +410,14 @@ def parent_question_create(body: QuestionIn, authorization: str | None = Header(
 
 
 @router.patch("/parent/questions/{question_id}")
-def parent_question_update(question_id: str, body: QuestionPatch,
+def parent_question_update(question_id: str, body: QuestionPatch, child_id: str | None = None,
                            authorization: str | None = Header(default=None)) -> dict[str, str]:
     require_parent_token(authorization)
-    child_id = get_child_id()
+    cid = resolve_child_id(child_id)
 
     def work(con: Any) -> str:
         try:
-            parental.question_update(con, child_id, question_id, body.model_dump(exclude_none=True))
+            parental.question_update(con, cid, question_id, body.model_dump(exclude_none=True))
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
         return "updated"
@@ -295,21 +426,23 @@ def parent_question_update(question_id: str, body: QuestionPatch,
 
 
 @router.post("/parent/unlock")
-def parent_unlock(authorization: str | None = Header(default=None)) -> dict[str, str]:
+def parent_unlock(child_id: str | None = None,
+                  authorization: str | None = Header(default=None)) -> dict[str, str]:
     require_parent_token(authorization)
-    child_id = get_child_id()
-    _tx(lambda con: parental.unlock(con, child_id))
+    cid = resolve_child_id(child_id)
+    _tx(lambda con: parental.unlock(con, cid))
     return {"status": "unlocked"}
 
 
 @router.patch("/parent/policy")
-def parent_policy(body: PolicyPatch, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def parent_policy(body: PolicyPatch, child_id: str | None = None,
+                  authorization: str | None = Header(default=None)) -> dict[str, Any]:
     require_parent_token(authorization)
-    child_id = get_child_id()
+    cid = resolve_child_id(child_id)
 
     def work(con: Any) -> dict[str, Any]:
         try:
-            return parental.update_policy(con, child_id, body.model_dump(exclude_none=True))
+            return parental.update_policy(con, cid, body.model_dump(exclude_none=True))
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
@@ -319,11 +452,10 @@ def parent_policy(body: PolicyPatch, authorization: str | None = Header(default=
 @router.post("/parent/consents")
 def parent_consent(body: ConsentIn, authorization: str | None = Header(default=None)) -> dict[str, str]:
     require_parent_token(authorization)
-    child_id = get_child_id()
 
     def work(con: Any) -> str:
         try:
-            parental.consent_set(con, child_id, body.scope, body.granted)
+            parental.consent_set(con, resolve_child_id(None), body.scope, body.granted)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
         return "updated"
@@ -340,9 +472,10 @@ def parent_notifications_read(authorization: str | None = Header(default=None)) 
 # ------------------------------------------------------------------- command center
 
 @router.get("/command/mission")
-def command_mission(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+def command_mission(child_id: str | None = None,
+                    authorization: str | None = Header(default=None)) -> dict[str, Any]:
     require_parent_token(authorization)
     from .main import BOOT_AT
 
-    child_id = get_child_id()
-    return _tx(lambda con: parental.command_mission(con, child_id, BOOT_AT))
+    cid = resolve_child_id(child_id)
+    return _tx(lambda con: parental.command_mission(con, cid, BOOT_AT))

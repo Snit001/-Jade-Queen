@@ -9,21 +9,147 @@
 """
 from __future__ import annotations
 
+import re
 import sqlite3
+from datetime import date as _date
 from datetime import timedelta
 from typing import Any
 
 from .age import compute_age
 from .audit import audit, recent_audit, unread_notifications
 from .config import PARENT_PIN, PARENT_TOKEN_TTL
-from .curriculum import MASTERY_THRESHOLD, skills_overview
+from .curriculum import MASTERY_THRESHOLD, set_mastery_bulk, skill_tree, skills_overview
 from .db import dumps, iso, loads, q_all, q_one, utcnow
 from .security import hash_answer, hash_secret, new_token, safe_equals
+from .strings import LANGS
 from . import wellbeing
+
+ATTENTION_PROFILES = ("normal", "courte")
 
 
 class Unauthorized(Exception):
     pass
+
+
+def _child_age(con: sqlite3.Connection, child_id: str):
+    row = q_one(con, "SELECT dob FROM children WHERE id = ?", (child_id,))
+    if row is None:
+        raise ValueError("enfant introuvable.")
+    return compute_age(dob=_date.fromisoformat(row["dob"]))
+
+
+def _lock_state(con: sqlite3.Connection, child_id: str) -> tuple[int, str | None]:
+    row = q_one(con, "SELECT failed_count, locked_until FROM locks WHERE child_id = ?", (child_id,))
+    return (int(row["failed_count"]), row["locked_until"]) if row else (0, None)
+
+
+# ---------------------------------------------------------------- enfants (multi-profils)
+
+def children_list(con: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = q_all(con, "SELECT * FROM children ORDER BY created_at")
+    out = []
+    for r in rows:
+        a = compute_age(dob=_date.fromisoformat(r["dob"]))
+        out.append({
+            "id": r["id"], "display_name": r["display_name"], "emoji": r["emoji"],
+            "dob": r["dob"], "age_years": a.years, "age_months": a.months,
+            "phase": a.phase, "phase_label": a.phase_label,
+            "lang": r["lang"], "attention": r["attention"],
+            "speech_support": bool(r["speech_support"]),
+        })
+    return out
+
+
+def patch_child(con: sqlite3.Connection, child_id: str, data: dict[str, Any]) -> dict[str, Any]:
+    """Réglages d'adaptation de l'enfant (autorité parentale, auditée) :
+    langue des cours (fr/en/es), profil d'attention (normal|courte),
+    soutien langage (voix ralentie, consignes répétées)."""
+    row = q_one(con, "SELECT * FROM children WHERE id = ?", (child_id,))
+    if row is None:
+        raise ValueError("Enfant inconnu.")
+
+    fields: list[str] = []
+    params: list[Any] = []
+
+    if "lang" in data and data["lang"] is not None:
+        lang = str(data["lang"]).split("-")[0].lower()
+        if lang not in LANGS:
+            raise ValueError(f"Langue non prise en charge : {lang} (fr|en|es).")
+        fields.append("lang = ?"); params.append(lang)
+    if "attention" in data and data["attention"] is not None:
+        att = str(data["attention"]).lower()
+        if att not in ATTENTION_PROFILES:
+            raise ValueError(f"Profil d'attention inconnu : {att} (normal|courte).")
+        fields.append("attention = ?"); params.append(att)
+    if "speech_support" in data and data["speech_support"] is not None:
+        fields.append("speech_support = ?"); params.append(1 if data["speech_support"] else 0)
+    if "display_name" in data and data["display_name"] is not None:
+        name = str(data["display_name"]).strip()
+        if not name or len(name) > 40:
+            raise ValueError("Prénom invalide (1–40 caractères).")
+        fields.append("display_name = ?"); params.append(name)
+    if "emoji" in data and data["emoji"] is not None:
+        fields.append("emoji = ?"); params.append(str(data["emoji"])[:4] or "⭐")
+    if "dob" in data and data["dob"] is not None:
+        try:
+            parsed = _date.fromisoformat(str(data["dob"]))
+        except ValueError:
+            raise ValueError("Date invalide (format AAAA-MM-JJ).") from None
+        if parsed > _date.today():
+            raise ValueError("La date de naissance est dans le futur.")
+        fields.append("dob = ?"); params.append(parsed.isoformat())
+
+    if not fields:
+        raise ValueError("Aucun champ à modifier (lang|attention|speech_support|display_name|emoji|dob).")
+
+    params.append(child_id)
+    con.execute(f"UPDATE children SET {', '.join(fields)} WHERE id = ?", tuple(params))
+    audit(con, "parent.child_updated", child_id=child_id, actor="parent",
+          payload={k: data[k] for k in data if k in ("lang", "attention", "speech_support", "display_name", "emoji", "dob")})
+    return {"id": child_id, "updated": [f.split(" ")[0] for f in fields]}
+
+
+def tree(con: sqlite3.Connection, child_id: str, lang: str = "fr") -> dict[str, Any]:
+    return skill_tree(con, child_id, lang)
+
+
+def mastery_bulk(con: sqlite3.Connection, child_id: str, skill_ids: list[str], action: str) -> dict[str, Any]:
+    if q_one(con, "SELECT id FROM children WHERE id = ?", (child_id,)) is None:
+        raise ValueError("Enfant inconnu.")
+    return set_mastery_bulk(con, child_id, skill_ids, action)
+
+
+def create_child(con: sqlite3.Connection, display_name: str, dob: str, emoji: str = "⭐") -> dict[str, Any]:
+    """Ajoute un enfant à la plateforme : son propre âge-moteur, ses questions
+    (placeholders à personnaliser), sa progression, ses verrous — tout est isolé."""
+    name = (display_name or "").strip()
+    if not name:
+        raise ValueError("Prénom requis.")
+    try:
+        parsed = _date.fromisoformat(dob)
+    except (ValueError, TypeError):
+        raise ValueError("Date invalide (format AAAA-MM-JJ).") from None
+    if parsed > _date.today():
+        raise ValueError("La date de naissance est dans le futur.")
+    if (_date.today() - parsed).days > 25 * 366:
+        raise ValueError("Âge supérieur à 25 ans non pris en charge.")
+
+    import unicodedata
+    norm = unicodedata.normalize("NFD", name).encode("ascii", "ignore").decode()
+    base = re.sub(r"[^a-z0-9]+", "-", norm.lower()).strip("-")[:24] or "enfant"
+    child_id = base
+    if q_one(con, "SELECT id FROM children WHERE id = ?", (child_id,)) is not None:
+        child_id = f"{base}-{new_token()[:4]}"
+
+    con.execute(
+        "INSERT INTO children (id, display_name, dob, phase, created_at, emoji) VALUES (?,?,?,?,?,?)",
+        (child_id, name, parsed.isoformat(), "PHASE_1", iso(), (emoji or "⭐")[:4]),
+    )
+    from .seed import seed_default_questions
+    seed_default_questions(con, child_id)
+    audit(con, "parent.child_created", child_id=child_id, actor="parent",
+          payload={"display_name": name, "dob": parsed.isoformat()})
+    return {"id": child_id, "display_name": name, "emoji": (emoji or "⭐")[:4]}
 
 
 def login(con: sqlite3.Connection, pin: str) -> dict[str, Any]:
@@ -53,15 +179,16 @@ def require_parent(con: sqlite3.Connection, token: str | None) -> None:
 
 # ---------------------------------------------------------------- overview
 
-def overview(con: sqlite3.Connection, child_id: str) -> dict[str, Any]:
-    age = compute_age()
+def overview(con: sqlite3.Connection, child_id: str, lang: str = "fr") -> dict[str, Any]:
+    age = _child_age(con, child_id)
     policy = wellbeing.effective_policy(con, child_id, age.policy)
-    skills = skills_overview(con, child_id)
+    skills = skills_overview(con, child_id, lang)
     mastered = sum(1 for s in skills if s["mastered"])
     failed, locked_until = _lock_state(con, child_id)
 
     return {
         "age": age.as_dict(),
+        "child": wellbeing.child_profile(con, child_id),
         "policy": policy,
         "today": {
             "screen_seconds": wellbeing.ledger_seconds(con, child_id),
@@ -78,11 +205,6 @@ def overview(con: sqlite3.Connection, child_id: str) -> dict[str, Any]:
         "consents": consents_list(con),
         "audit_tail": recent_audit(con, limit=20),
     }
-
-
-def _lock_state(con: sqlite3.Connection, child_id: str) -> tuple[int, str | None]:
-    row = q_one(con, "SELECT failed_count, locked_until FROM locks WHERE child_id = ?", (child_id,))
-    return (int(row["failed_count"]), row["locked_until"]) if row else (0, None)
 
 
 # ---------------------------------------------------------------- questions
@@ -201,7 +323,7 @@ def unlock(con: sqlite3.Connection, child_id: str) -> None:
 # ---------------------------------------------------------------- command center
 
 def command_mission(con: sqlite3.Connection, child_id: str, boot_at: str) -> dict[str, Any]:
-    age = compute_age()
+    age = _child_age(con, child_id)
     policy = wellbeing.effective_policy(con, child_id, age.policy)
     skills = skills_overview(con, child_id)
     mastered = sum(1 for s in skills if s["mastered"])

@@ -87,7 +87,7 @@ def test_happy_flow_identification_session_apprentissage():
     assert last["session"]["remaining_seconds"] > 0
 
     step = client.get("/api/learning/step", params={"token": SESSION["token"]}).json()
-    assert step["mode"] == "new" and step["skill"]["id"] == "coul-1"   # 1re étape du graphe
+    assert step["mode"] == "new" and step["skill"]["id"] == "num-1"   # 1re étape du graphe (v2 : niveau croissant)
 
     r = client.post("/api/learning/outcome", json={"token": SESSION["token"], "skill_id": "coul-1", "success": True}).json()
     assert r["mastery"] == pytest.approx(0.25)
@@ -167,7 +167,7 @@ def test_curriculum_graphe_et_repetition_espacee():
     assert r["mastery"] == 1.0 and r["mastered"]                        # ≥ 0.9 → étape validée
 
     step = next_step(con, CHILD)
-    assert step["skill"]["id"] == "anim-1"                              # étape suivante débloquée
+    assert step["skill"]["id"] == "num-1"                              # plus bas niveau encore ouvert (v2)
 
     con.execute("UPDATE mastery SET next_review_at = ? WHERE child_id = ? AND skill_id = 'coul-1'",
                 (iso(utcnow() - timedelta(hours=1)), CHILD))
@@ -207,6 +207,6 @@ def test_audit_et_command_center():
 
     mission = client.get("/api/command/mission", headers=h).json()
     assert mission["kpi"]["phase"] == "PHASE_1"
-    assert mission["kpi"]["skills_total"] == 5
+    assert mission["kpi"]["skills_total"] == 62                     # v2.0 : arbre complet « plafond ouvert »
     assert mission["services"] and len(mission["services"]) == 9
     assert client.get("/api/command/mission").status_code == 401        # parent requis

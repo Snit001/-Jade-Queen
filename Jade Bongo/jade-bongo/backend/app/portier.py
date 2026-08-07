@@ -15,6 +15,8 @@ import sqlite3
 from datetime import timedelta
 from typing import Any
 
+from datetime import date
+
 from .age import compute_age
 from .audit import audit, notify
 from .config import LOCK_MAX_FAILURES, LOCK_MINUTES
@@ -31,6 +33,14 @@ class Locked(Exception):
 
 class BadRequest(Exception):
     pass
+
+
+def _child_age(con: sqlite3.Connection, child_id: str):
+    """Age Engine alimenté par la date de naissance de L'ENFANT concerné (multi-enfants)."""
+    row = q_one(con, "SELECT dob FROM children WHERE id = ?", (child_id,))
+    if row is None:
+        raise BadRequest("Enfant inconnu.")
+    return compute_age(dob=date.fromisoformat(row["dob"]))
 
 
 def get_lock(con: sqlite3.Connection, child_id: str) -> tuple[int, str | None]:
@@ -85,7 +95,7 @@ def create_challenge(con: sqlite3.Connection, child_id: str) -> dict[str, Any]:
         audit(con, "identity.challenge_refused_locked", child_id=child_id, payload={"remaining_seconds": remaining})
         raise Locked(locked_until)
 
-    age = compute_age()
+    age = _child_age(con, child_id)
     k = age.policy["identification"]["questions_per_session"]
     allowed_modalities = set(age.policy["identification"]["modalities"])
 
@@ -188,7 +198,7 @@ def submit_answer(
     unlock(con, child_id, actor="system")
     audit(con, "identity.succeeded", child_id=child_id, actor=actor, payload={"challenge_id": challenge_id})
 
-    age = compute_age()
+    age = _child_age(con, child_id)
     policy = wellbeing.effective_policy(con, child_id, age.policy)
     consent = q_one(con, "SELECT revoked_at FROM consents WHERE scope = 'education'")
     if consent is not None and consent["revoked_at"] is not None:
