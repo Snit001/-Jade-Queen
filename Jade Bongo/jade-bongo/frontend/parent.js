@@ -22,6 +22,7 @@ const NOTIF_KEYS = {
   "learning.milestone": "🏆 Jalon franchi|🏆 Milestone reached|🏆 Hito alcanzado",
   "learning.acceleration": "🚀 Accélération (compétence validée du premier coup)|🚀 Acceleration (skill mastered first try)|🚀 Aceleración (competencia validada a la primera)",
   "parent.child_created": "👶 Nouveau profil enfant|👶 New child profile|👶 Nuevo perfil de niño",
+  "parent.child_deleted": "🗑 Profil enfant supprimé|🗑 Child profile deleted|🗑 Perfil de niño eliminado",
   "parent.evaluation": "📋 Évaluation initiale enregistrée|📋 Initial assessment saved|📋 Evaluación inicial guardada",
   "parent.child_updated": "⚙️ Réglages de l'enfant modifiés|⚙️ Child settings updated|⚙️ Ajustes del niño modificados",
 };
@@ -103,6 +104,7 @@ async function loadAll() {
   renderAge(ov);
   renderToday(ov);
   renderSettings(ov);
+  await renderAssistant(ov);
   renderEval();
   renderMastery(ov);
   renderNotifs(ov);
@@ -110,6 +112,63 @@ async function loadAll() {
   renderChildren();
   await renderQuestions();
   await renderAudit();
+}
+
+/* 🧭 Assistant de démarrage interactif : les 5 étapes, cochées en direct,
+   avec une action immédiate à chaque étape. */
+async function renderAssistant(ov) {
+  let card = $("#c-assist");
+  if (!card) {
+    card = el(`<div class="card" id="c-assist" style="grid-column:1/-1; border:2px solid #4f46e5"><h2>${T("assist")}</h2><div class="body"></div></div>`);
+    $(".cards").insertBefore(card, $(".cards").firstChild);
+  }
+  const b = $("#c-assist .body"); b.innerHTML = "";
+
+  const qsList = await api("/api/parent/questions" + qs());
+  const activeQ = qsList.filter((q) => q.active).length;
+  const customQ = qsList.filter((q) => q.active && !q.id.includes("default")).length;
+  const mastered = TREE.counts.mastered;
+  let sessionsDone = false;
+  try {
+    const evts = await api("/api/parent/audit?limit=1&type_prefix=session.started" + qsAnd());
+    sessionsDone = evts.length > 0;
+  } catch (e) {}
+
+  const steps = [
+    { done: CHILDREN.length >= 1, label: T("a_step1"), action: null },
+    {
+      done: true, label: T("a_step2"),
+      action: () => {
+        const sel = el(`<select style="max-width:190px"><option value="fr">🇫🇷 Français</option><option value="en">🇬🇧 English</option><option value="es">🇪🇸 Español</option></select>`);
+        sel.value = (ov.child && ov.child.lang) || "fr";
+        sel.onchange = async () => {
+          await api(`/api/parent/children/${encodeURIComponent(CHILD)}`, { method: "PATCH", body: { lang: sel.value } });
+          await loadChildren(); buildSelector(); loadAll();
+        };
+        return sel;
+      },
+    },
+    { done: mastered > 0, label: T("a_step3", { n: mastered }), action: () => scrollBtn("#c-eval") },
+    { done: activeQ >= 2 && customQ >= 1, label: T("a_step4", { n: activeQ }), action: () => scrollBtn("#c-questions") },
+    { done: sessionsDone, label: T("a_step5"), action: null },
+  ];
+
+  const doneCount = steps.filter((s) => s.done).length;
+  b.appendChild(el(`<div class="pbar" style="margin-bottom:12px"><div class="pfill" style="width:${Math.round(100 * doneCount / steps.length)}%"></div></div>`));
+  steps.forEach((s, i) => {
+    const row = el(`<div class="tree-row"><span style="font-size:18px">${s.done ? "✅" : "⬜"}</span>
+      <span class="nm"><b>${i + 1}.</b> ${s.label}</span></div>`);
+    if (s.action) row.appendChild(s.action());
+    b.appendChild(row);
+  });
+  if (doneCount === steps.length) b.appendChild(el(`<p class="eval-flash">${T("a_ready")}</p>`));
+  if (customQ === 0) b.appendChild(el(`<p style="font-size:12px;color:var(--warn);margin-top:6px">${T("a_default_q")}</p>`));
+
+  function scrollBtn(sel) {
+    const btn = el(`<button class="mini-btn">${T("a_open")}</button>`);
+    btn.onclick = () => { const c = $(sel); if (c) c.scrollIntoView({ behavior: "smooth", block: "start" }); };
+    return btn;
+  }
 }
 
 function renderAge(ov) {
@@ -282,23 +341,53 @@ function renderChildren() {
     $(".cards").insertBefore(card, $(".cards").children[2] || null);
   }
   const b = $("#c-children .body"); b.innerHTML = "";
+  const flash = el('<p class="eval-flash"></p>');
   CHILDREN.forEach((c) => {
-    b.appendChild(el(`<div class="kv"><span>${c.emoji} <b>${esc(c.display_name)}</b></span><b>${c.age_years} ans · ${c.phase} · 🌍${c.lang.toUpperCase()}${c.attention === "courte" ? " · ⚡" : ""}${c.speech_support ? " · 🗣️" : ""}</b></div>`));
+    const row = el(`<div class="tree-row"><span>${c.emoji}</span>
+      <span class="nm"><b>${esc(c.display_name)}</b></span>
+      <span style="font-size:12px;color:var(--muted)">${c.age_years} ans · ${c.phase} · 🌍${c.lang.toUpperCase()}${c.attention === "courte" ? " · ⚡" : ""}${c.speech_support ? " · 🗣️" : ""}</span></div>`);
+    // 🗑 Suppression de profil (garde-fou : jamais le dernier)
+    if (CHILDREN.length > 1) {
+      const del = el(`<button class="mini-btn" style="background:var(--bad)">${T("del_child")}</button>`);
+      del.onclick = async () => {
+        if (!window.confirm(T("del_confirm", { n: c.display_name }))) return;
+        del.disabled = true;
+        try {
+          const r = await api(`/api/parent/children/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+          flash.textContent = T("del_done", { n: r.display_name });
+          if (CHILD === c.id) CHILD = null;
+          await loadChildren(); buildSelector(); await loadAll();
+        } catch (e2) {
+          del.disabled = false;
+          window.alert((e2.body && e2.body.detail) || T("check_fields"));
+        }
+      };
+      row.appendChild(del);
+    }
+    row.addEventListener("click", async (ev) => {
+      if (ev.target.closest("button")) return;
+      CHILD = c.id; buildSelector(); TREE = null; await loadAll();
+    });
+    row.style.cursor = "pointer";
+    b.appendChild(row);
   });
+  b.appendChild(flash);
   b.appendChild(el(`<h2 style="margin-top:14px">${T("add_child")}</h2>`));
   const fName = el(`<input placeholder="${esc(T("firstname"))}" maxlength="40">`);
   const fDob = el('<input type="date" max="' + new Date().toISOString().slice(0, 10) + '">');
   const fEmoji = el('<input placeholder="🦊" maxlength="4">');
+  const fLang = el(`<select><option value="fr">🇫🇷 Français</option><option value="en">🇬🇧 English</option><option value="es">🇪🇸 Español</option></select>`);
   const err = el('<p style="color:var(--bad);font-size:13px;margin-top:6px"></p>');
   const ok = el('<p class="eval-flash"></p>');
   b.appendChild(el(`<label class="f">${T("firstname")}</label>`)); b.appendChild(fName);
   b.appendChild(el(`<label class="f">${T("dob")}</label>`)); b.appendChild(fDob);
   b.appendChild(el(`<label class="f">${T("emoji")}</label>`)); b.appendChild(fEmoji);
+  b.appendChild(el(`<label class="f">${T("lang_child")}</label>`)); b.appendChild(fLang);
   const add = el(`<button class="btn" style="margin-top:10px">${T("create_profile")}</button>`);
   add.onclick = async () => {
     err.textContent = ""; ok.textContent = "";
     try {
-      const r = await api("/api/parent/children", { method: "POST", body: { display_name: fName.value, dob: fDob.value, emoji: fEmoji.value || "⭐" } });
+      const r = await api("/api/parent/children", { method: "POST", body: { display_name: fName.value, dob: fDob.value, emoji: fEmoji.value || "⭐", lang: fLang.value } });
       ok.textContent = T("profile_created", { n: r.display_name, e: r.emoji });
       await loadChildren(); buildSelector(); CHILD = r.id; buildSelector(); await loadAll();
     } catch (e2) { err.textContent = (e2.body && e2.body.detail) || T("check_fields"); }

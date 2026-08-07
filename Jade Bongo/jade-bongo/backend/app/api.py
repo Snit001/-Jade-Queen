@@ -123,6 +123,7 @@ class ChildIn(BaseModel):
     display_name: str = Field(min_length=1, max_length=40)
     dob: str
     emoji: str = "⭐"
+    lang: str = "fr"                                # fr | en | es — gouverne tout le profil
 
 
 class ChildPatch(BaseModel):
@@ -144,7 +145,7 @@ class MasteryIn(BaseModel):
 @router.get("/health")
 def health() -> dict[str, Any]:
     n = _tx(lambda con: int(q_one(con, "SELECT COUNT(*) AS n FROM skills")["n"]))
-    return {"status": "ok", "service": "Jade Bɔngɔ́", "version": "2.0.0",
+    return {"status": "ok", "service": "Jade Bɔngɔ́", "version": "2.1.0",
             "skills_total": n, "langs": ["fr", "en", "es"]}
 
 
@@ -167,9 +168,11 @@ def age_public(child_id: str | None = None) -> dict[str, Any]:
 
 @router.get("/children")
 def children_public() -> list[dict[str, str]]:
-    """Sélecteur de profils (écran d'accueil) : prénom d'affichage + emoji, rien d'autre."""
-    rows = _tx(lambda con: q_all(con, "SELECT id, display_name, emoji FROM children ORDER BY created_at"))
-    return [{"id": r["id"], "display_name": r["display_name"], "emoji": r["emoji"]} for r in rows]
+    """Sélecteur de profils (écran d'accueil) : prénom + emoji + LANGUE du profil
+    (rien de sensible — la langue doit être connue AVANT identification pour
+    traduire toute l'interface de l'enfant concerné)."""
+    rows = _tx(lambda con: q_all(con, "SELECT id, display_name, emoji, lang FROM children ORDER BY created_at"))
+    return [{"id": r["id"], "display_name": r["display_name"], "emoji": r["emoji"], "lang": r["lang"]} for r in rows]
 
 
 # ------------------------------------------------------------------- identification
@@ -321,7 +324,7 @@ def parent_child_create(body: ChildIn, authorization: str | None = Header(defaul
 
     def work(con: Any) -> dict[str, Any]:
         try:
-            return parental.create_child(con, body.display_name, body.dob, body.emoji)
+            return parental.create_child(con, body.display_name, body.dob, body.emoji, body.lang)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
@@ -337,6 +340,21 @@ def parent_child_patch(child_id: str, body: ChildPatch,
     def work(con: Any) -> dict[str, Any]:
         try:
             return parental.patch_child(con, child_id, body.model_dump(exclude_none=True))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    return _tx(work)
+
+
+@router.delete("/parent/children/{child_id}")
+def parent_child_delete(child_id: str,
+                        authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    """Suppression définitive d'un profil enfant + toutes ses données (cascade)."""
+    require_parent_token(authorization)
+
+    def work(con: Any) -> dict[str, Any]:
+        try:
+            return parental.delete_child(con, child_id)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 

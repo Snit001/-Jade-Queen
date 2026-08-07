@@ -52,7 +52,7 @@ def make_child(name: str, dob: str) -> str:
 
 def test_health_v2_open_ceiling():
     body = client.get("/api/health").json()
-    assert body["version"] == "2.0.0"
+    assert body["version"] == "2.1.0"
     assert body["skills_total"] == 62               # l'arbre complet
     assert set(body["langs"]) == {"fr", "en", "es"}
 
@@ -211,3 +211,117 @@ def test_arbre_complet_et_compteurs():
     assert tree["counts"]["unlocked"] >= 12                  # 18 racines exactement
     labels = [s["label"] for d in tree["domains"] for s in d["skills"]]
     assert any("Count up to 3" in l or "Compter jusqu'à 3" in l for l in labels)
+
+
+# ---------------------------------------------------------------- v2.1 : langue du PROFIL
+
+def test_profil_anglophone_tout_en_anglais():
+    """La langue suit le PROFIL, pas l'appareil : une enfant anglophone reçoit
+    interface, leçons et voix en anglais — même si le téléphone est en français."""
+    cid = make_child("Grace", "2022-05-10")
+    assert client.patch(f"/api/parent/children/{cid}", headers=h(), json={"lang": "en"}).status_code == 200
+
+    ch = client.post("/api/identity/challenge", params={"child_id": cid}).json()
+    last = None
+    for q in ch["questions"]:
+        last = client.post("/api/identity/answer", json={
+            "challenge_id": ch["challenge_id"], "question_id": q["id"],
+            "parent_validated": True}).json()
+    assert last["done"] and last["session"]
+    step = client.get("/api/learning/step", params={"token": last["session"]["token"]}).json()
+    assert step["lang"] == "en" and step["child"]["lang"] == "en"
+    assert step["skill"]["label"] == "Count up to 3"         # leçon en anglais
+    assert step["skill"]["domain_label"] == "Mathematics"
+    # le sélecteur public expose la langue (interface traduite AVANT identification)
+    pick = client.get("/api/children").json()
+    grace = next(c for c in pick if c["id"] == cid)
+    assert grace["lang"] == "en"
+    assert all(set(c.keys()) == {"id", "display_name", "emoji", "lang"} for c in pick)
+    client.post("/api/session/end", json={"token": last["session"]["token"]})
+
+
+def test_questions_dans_la_langue_du_profil():
+    """Création d'un profil anglophone : questions placeholder EN ANGLAIS,
+    avec le prénom et l'âge réel déjà acceptés. Idem en espagnol."""
+    r = client.post("/api/parent/children", headers=h(),
+                    json={"display_name": "Emma", "dob": "2022-05-10", "emoji": "🇺🇸", "lang": "en"})
+    assert r.status_code == 200 and r.json()["lang"] == "en"
+    cid = r.json()["id"]
+    qs = client.get("/api/parent/questions?child_id=" + cid, headers=h()).json()
+    texts = {q["prompt"]["text"] for q in qs}
+    assert "What is your name?" in texts                     # pas de français !
+    assert "How old are you?" in texts
+
+    import json as _json
+    from app.security import verify_candidate
+    con = connect()
+    try:
+        q1 = con.execute("SELECT answer_hashes_json FROM identity_questions WHERE child_id = ? AND id LIKE '%q1'",
+                         (cid,)).fetchone()
+        assert verify_candidate("Emma", _json.loads(q1[0]))  # prénom déjà accepté
+        q4 = con.execute("SELECT answer_hashes_json FROM identity_questions WHERE child_id = ? AND id LIKE '%q4'",
+                         (cid,)).fetchone()
+        assert verify_candidate("4", _json.loads(q4[0]))     # âge réel déjà accepté
+    finally:
+        con.close()
+
+    # un profil espagnol
+    r2 = client.post("/api/parent/children", headers=h(),
+                     json={"display_name": "Sofía", "dob": "2021-09-01", "emoji": "🇪🇸", "lang": "es"})
+    assert r2.status_code == 200 and r2.json()["lang"] == "es"
+    texts_es = {q["prompt"]["text"] for q in client.get(
+        "/api/parent/questions?child_id=" + r2.json()["id"], headers=h()).json()}
+    assert "¿Cómo te llamas?" in texts_es
+    # langue inconnue → refus
+    bad = client.post("/api/parent/children", headers=h(),
+                      json={"display_name": "X", "dob": "2022-01-01", "lang": "de"})
+    assert bad.status_code in (400, 422)
+
+
+# ---------------------------------------------------------------- v2.1 : suppression de profil
+
+def test_suppression_profil_cascade():
+    cid = make_child("Temp", "2023-01-01")
+    # un peu de progression, de sécurité et de politique à effacer
+    client.post("/api/parent/mastery?child_id=" + cid, headers=h(),
+                json={"skill_ids": ["coul-1"], "action": "mastered"})
+    client.patch("/api/parent/policy?child_id=" + cid, headers=h(),
+                 json={"session_max_minutes": 8})
+    r = client.delete(f"/api/parent/children/{cid}", headers=h())
+    assert r.status_code == 200 and r.json()["deleted"] == cid
+
+    pick = client.get("/api/children").json()
+    assert cid not in {c["id"] for c in pick}
+    con = connect()
+    try:
+        for table in ("mastery", "sessions", "locks", "challenges",
+                      "identity_questions", "policy_overrides", "screen_time_ledger"):
+            n = con.execute(f"SELECT COUNT(*) FROM {table} WHERE child_id = ?", (cid,)).fetchone()[0]
+            assert n == 0, f"{table} : données orphelines"
+        # requête parent sur un profil supprimé → 404
+    finally:
+        con.close()
+    assert client.get("/api/parent/overview", headers=h(),
+                      params={"child_id": cid}).status_code == 404
+
+    # suppression d'un inconnu → 400
+    assert client.delete("/api/parent/children/inconnu", headers=h()).status_code == 400
+
+
+def test_dernier_profil_non_supprimable():
+    """Garde-fou absolu : il doit toujours rester au moins un profil.
+    (Dernier test du fichier : réduit la base à un seul enfant.)"""
+    from app import parental
+    con = connect()
+    try:
+        ids = [r[0] for r in con.execute("SELECT id FROM children ORDER BY created_at").fetchall()]
+        for victim in ids[:-1]:
+            parental.delete_child(con, victim)
+        con.commit()
+        try:
+            parental.delete_child(con, ids[-1])
+            raise AssertionError("doit refuser de supprimer le dernier profil")
+        except ValueError:
+            con.rollback()
+    finally:
+        con.close()

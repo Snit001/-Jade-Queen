@@ -26,6 +26,14 @@ from . import wellbeing
 
 ATTENTION_PROFILES = ("normal", "courte")
 
+# Tables rattachées à un enfant — suppression en cascade (RGPD : effacer un
+# profil efface TOUTES ses données. L'audit global, lui, est append-only et
+# ne contient aucune donnée personnelle au-delà de l'identifiant technique.)
+CHILD_TABLES = (
+    "mastery", "sessions", "locks", "challenges",
+    "identity_questions", "policy_overrides", "screen_time_ledger",
+)
+
 
 class Unauthorized(Exception):
     pass
@@ -119,12 +127,36 @@ def mastery_bulk(con: sqlite3.Connection, child_id: str, skill_ids: list[str], a
     return set_mastery_bulk(con, child_id, skill_ids, action)
 
 
-def create_child(con: sqlite3.Connection, display_name: str, dob: str, emoji: str = "⭐") -> dict[str, Any]:
+def delete_child(con: sqlite3.Connection, child_id: str) -> dict[str, Any]:
+    """Suppression définitive d'un profil enfant (autorité parentale) :
+    toutes ses données sont effacées en cascade. Garde-fou absolu :
+    le dernier profil ne peut pas être supprimé."""
+    row = q_one(con, "SELECT id, display_name FROM children WHERE id = ?", (child_id,))
+    if row is None:
+        raise ValueError("Enfant inconnu.")
+    total = int(q_one(con, "SELECT COUNT(*) AS n FROM children")["n"])
+    if total <= 1:
+        raise ValueError("Impossible de supprimer le dernier profil : il faut au moins un enfant.")
+    for table in CHILD_TABLES:
+        con.execute(f"DELETE FROM {table} WHERE child_id = ?", (child_id,))
+    con.execute("DELETE FROM children WHERE id = ?", (child_id,))
+    audit(con, "parent.child_deleted", child_id=child_id, actor="parent",
+          payload={"display_name": row["display_name"]})
+    return {"deleted": child_id, "display_name": row["display_name"]}
+
+
+def create_child(con: sqlite3.Connection, display_name: str, dob: str, emoji: str = "⭐",
+                 lang: str = "fr") -> dict[str, Any]:
     """Ajoute un enfant à la plateforme : son propre âge-moteur, ses questions
-    (placeholders à personnaliser), sa progression, ses verrous — tout est isolé."""
+    (placeholders DANS SA LANGUE, à personnaliser), sa progression, ses verrous
+    — tout est isolé. La langue choisie à la création gouverne TOUT le profil
+    (interface enfant, leçons, voix, questions par défaut)."""
     name = (display_name or "").strip()
     if not name:
         raise ValueError("Prénom requis.")
+    lang = str(lang or "fr").split("-")[0].lower()
+    if lang not in LANGS:
+        raise ValueError(f"Langue non prise en charge : {lang} (fr|en|es).")
     try:
         parsed = _date.fromisoformat(dob)
     except (ValueError, TypeError):
@@ -142,14 +174,14 @@ def create_child(con: sqlite3.Connection, display_name: str, dob: str, emoji: st
         child_id = f"{base}-{new_token()[:4]}"
 
     con.execute(
-        "INSERT INTO children (id, display_name, dob, phase, created_at, emoji) VALUES (?,?,?,?,?,?)",
-        (child_id, name, parsed.isoformat(), "PHASE_1", iso(), (emoji or "⭐")[:4]),
+        "INSERT INTO children (id, display_name, dob, phase, created_at, emoji, lang) VALUES (?,?,?,?,?,?,?)",
+        (child_id, name, parsed.isoformat(), "PHASE_1", iso(), (emoji or "⭐")[:4], lang),
     )
     from .seed import seed_default_questions
-    seed_default_questions(con, child_id)
+    seed_default_questions(con, child_id, firstname=name, dob=parsed.isoformat(), lang=lang)
     audit(con, "parent.child_created", child_id=child_id, actor="parent",
-          payload={"display_name": name, "dob": parsed.isoformat()})
-    return {"id": child_id, "display_name": name, "emoji": (emoji or "⭐")[:4]}
+          payload={"display_name": name, "dob": parsed.isoformat(), "lang": lang})
+    return {"id": child_id, "display_name": name, "emoji": (emoji or "⭐")[:4], "lang": lang}
 
 
 def login(con: sqlite3.Connection, pin: str) -> dict[str, Any]:

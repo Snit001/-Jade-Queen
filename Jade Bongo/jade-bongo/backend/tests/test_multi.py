@@ -32,7 +32,7 @@ def test_creation_profil_et_selecteur_public():
     pick = client.get("/api/children").json()
     names = {c["display_name"] for c in pick}
     assert {"Jade", "Léo"} <= names
-    assert all(set(c.keys()) == {"id", "display_name", "emoji"} for c in pick)  # payload minimal
+    assert all(set(c.keys()) == {"id", "display_name", "emoji", "lang"} for c in pick)  # minimal + langue (v2.1)
 
     listed = client.get("/api/parent/children", headers=H["h"]).json()
     leo = next(c for c in listed if c["id"] == LEO)

@@ -3,7 +3,7 @@
    - App shell hors-ligne (ouverture instantanée)
    - API toujours en réseau (jamais de données figées pour un enfant)
 */
-const CACHE = "jade-bongo-v2";
+const CACHE = "jade-bongo-v2.1";
 const SHELL = [
   "/", "/index.html", "/style.css", "/i18n.js", "/app.js",
   "/parent.html", "/parent.js", "/command.html", "/command.js",

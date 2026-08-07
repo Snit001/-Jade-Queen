@@ -99,20 +99,39 @@ function ensureChip() {
 function clearChips() { document.querySelectorAll(".chip, .quiet-quit, .breath-overlay, .repeat-btn").forEach((n) => n.remove()); }
 
 /* ---------------- ÉCRAN 1 : Bienvenue ---------------- */
+/**
+ * Règle absolue : la langue suit le PROFIL de l'enfant, pas l'appareil.
+ * Un profil anglophone = interface + leçons + voix 100 % en anglais,
+ * même si le téléphone de la famille est réglé en français (bug signalé :
+ * « leçons en français prononcées en anglais » — corrigé ainsi).
+ */
+function applyChildLanguage(child) {
+  const lang = child && child.lang ? child.lang : null;
+  if (!lang) return;
+  if (window.I18N.get() !== lang) window.I18N.set(lang);
+  state.lang = lang;
+  window.I18N.syncSwitcher();
+}
+
 async function screenWelcome() {
-  stopTimers(); clearChips(); state.token = null; state.lang = window.I18N.get();
+  stopTimers(); clearChips(); state.token = null;
+  state.lang = window.I18N.get();
   applyProfileClasses();
   let children = [];
   try { children = await api("/api/children"); } catch (e) {}
   if (children.length && !state.childId) state.childId = children[0].id;
   const current = children.find((c) => c.id === state.childId);
   state.childName = current ? current.display_name : state.childName;
+  applyChildLanguage(current);                              // ← langue du profil
 
   let phaseTxt = "", parentNote = "";
   try {
     const age = await api("/api/age" + (state.childId ? "?child_id=" + encodeURIComponent(state.childId) : ""));
     phaseTxt = `${age.phase_label}`;
-    if (age.child) state.speechSupport = !!age.child.speech_support;
+    if (age.child) {
+      state.speechSupport = !!age.child.speech_support;
+      applyChildLanguage({ lang: age.child.lang });         // ← filet de sécurité
+    }
     if (age.policy && age.policy.requires_parent_present) parentNote = T("parent_note");
   } catch (e) {}
 
@@ -129,7 +148,7 @@ async function screenWelcome() {
       const active = c.id === state.childId;
       const b = el(`<button class="opt" style="min-height:96px; min-width:112px; ${active ? "outline:4px solid #fff; outline-offset:2px;" : "opacity:.75"}">
         <span class="oe" style="font-size:40px">${c.emoji}</span><span class="ol">${c.display_name}</span></button>`);
-      b.onclick = () => { state.childId = c.id; state.childName = c.display_name; screenWelcome(); };
+      b.onclick = () => { state.childId = c.id; state.childName = c.display_name; applyChildLanguage(c); screenWelcome(); };
       row.appendChild(b);
     });
     nodes.push(row);

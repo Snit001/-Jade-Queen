@@ -422,6 +422,48 @@ QUESTIONS: list[dict] = [
 
 CONSENTS = ["education", "stockage_donnees", "voix_audio", "rapports_parents"]
 
+# Banques de questions placeholder par LANGUE DU PROFIL (v2.1) : un profil
+# anglophone reçoit ses questions en anglais dès sa création. À personnaliser.
+QUESTIONS_EN: list[dict] = [
+    {"id": "q1", "modality": "voice", "prompt": {"text": "What is your name?", "emoji": "👋"},
+     "options": None, "answers": []},  # complété avec le prénom du profil
+    {"id": "q2", "modality": "image_tap", "prompt": {"text": "Touch the colour red", "emoji": "❤️"},
+     "options": [{"id": "red", "label": "red", "emoji": "🔴"}, {"id": "blue", "label": "blue", "emoji": "🔵"},
+                 {"id": "green", "label": "green", "emoji": "🟢"}, {"id": "yellow", "label": "yellow", "emoji": "🟡"}],
+     "answers": ["red"]},
+    {"id": "q3", "modality": "image_tap", "prompt": {"text": "Touch the cat", "emoji": "🐾"},
+     "options": [{"id": "dog", "label": "dog", "emoji": "🐶"}, {"id": "cat", "label": "cat", "emoji": "🐱"},
+                 {"id": "rabbit", "label": "rabbit", "emoji": "🐰"}, {"id": "duck", "label": "duck", "emoji": "🦆"}],
+     "answers": ["cat"]},
+    {"id": "q4", "modality": "voice", "prompt": {"text": "How old are you?", "emoji": "🎂"},
+     "options": None, "answers": []},  # complété avec l'âge réel du profil
+    {"id": "q5", "modality": "image_tap", "prompt": {"text": "Touch the star", "emoji": "⭐"},
+     "options": [{"id": "star", "label": "star", "emoji": "⭐"}, {"id": "heart", "label": "heart", "emoji": "❤️"},
+                 {"id": "dot", "label": "dot", "emoji": "🔵"}, {"id": "tri", "label": "triangle", "emoji": "🔺"}],
+     "answers": ["star"]},
+]
+
+QUESTIONS_ES: list[dict] = [
+    {"id": "q1", "modality": "voice", "prompt": {"text": "¿Cómo te llamas?", "emoji": "👋"},
+     "options": None, "answers": []},
+    {"id": "q2", "modality": "image_tap", "prompt": {"text": "Toca el color rojo", "emoji": "❤️"},
+     "options": [{"id": "red", "label": "rojo", "emoji": "🔴"}, {"id": "blue", "label": "azul", "emoji": "🔵"},
+                 {"id": "green", "label": "verde", "emoji": "🟢"}, {"id": "yellow", "label": "amarillo", "emoji": "🟡"}],
+     "answers": ["red"]},
+    {"id": "q3", "modality": "image_tap", "prompt": {"text": "Toca el gato", "emoji": "🐾"},
+     "options": [{"id": "dog", "label": "perro", "emoji": "🐶"}, {"id": "cat", "label": "gato", "emoji": "🐱"},
+                 {"id": "rabbit", "label": "conejo", "emoji": "🐰"}, {"id": "duck", "label": "pato", "emoji": "🦆"}],
+     "answers": ["cat"]},
+    {"id": "q4", "modality": "voice", "prompt": {"text": "¿Cuántos años tienes?", "emoji": "🎂"},
+     "options": None, "answers": []},
+    {"id": "q5", "modality": "image_tap", "prompt": {"text": "Toca la estrella", "emoji": "⭐"},
+     "options": [{"id": "star", "label": "estrella", "emoji": "⭐"}, {"id": "heart", "label": "corazón", "emoji": "❤️"},
+                 {"id": "dot", "label": "punto", "emoji": "🔵"}, {"id": "tri", "label": "triángulo", "emoji": "🔺"}],
+     "answers": ["star"]},
+]
+
+QUESTION_BANKS = {"fr": QUESTIONS, "en": QUESTIONS_EN, "es": QUESTIONS_ES}
+
 
 def seed_skills(con: sqlite3.Connection) -> None:
     """Upsert : installe les nouvelles compétences ET rafraîchit le contenu
@@ -443,14 +485,36 @@ def seed_skills(con: sqlite3.Connection) -> None:
             con.execute("INSERT INTO skill_edges (from_skill, to_skill) VALUES (?,?)", (a, b))
 
 
-def seed_default_questions(con: sqlite3.Connection, child_id: str) -> None:
-    """Clone les questions placeholder pour un enfant (le parent les remplace)."""
+def seed_default_questions(con: sqlite3.Connection, child_id: str,
+                           firstname: str | None = None, dob: str | None = None,
+                           lang: str = "fr") -> None:
+    """Clone les questions placeholder DANS LA LANGUE DU PROFIL (le parent
+    les remplace ensuite).
+    Bonus : le prénom (q1) et l'âge calculé depuis la date de naissance (q4)
+    sont déjà des réponses acceptées — le dispositif marche dès la création."""
+    from datetime import date as _date
+    from .strings import norm_lang
+
+    bank = QUESTION_BANKS.get(norm_lang(lang), QUESTIONS)
     existing = {r["id"] for r in con.execute(
         "SELECT id FROM identity_questions WHERE child_id = ?", (child_id,)).fetchall()}
-    for q in QUESTIONS:
+    for q in bank:
         qid = f"{child_id}-default-{q['id']}" if child_id != CHILD_ID else q["id"]
         if qid in existing:
             continue
+        answers = list(q["answers"])
+        if q["id"] == "q1" and firstname:
+            answers = [firstname.strip().lower()]                 # le prénom du profil
+        elif q["id"] == "q4" and dob:
+            try:
+                d0 = _date.fromisoformat(dob)
+                today = _date.today()
+                months = (today.year - d0.year) * 12 + (today.month - d0.month) - (1 if today.day < d0.day else 0)
+                answers = [str(months // 12)]                     # l'âge réel en années
+            except ValueError:
+                answers = list(q["answers"])
+        if not answers:                                             # sécurité : jamais vide
+            answers = ["parent"]
         con.execute(
             """INSERT INTO identity_questions
                (id, child_id, modality, prompt_json, options_json, answer_hashes_json,
@@ -458,7 +522,7 @@ def seed_default_questions(con: sqlite3.Connection, child_id: str) -> None:
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (qid, child_id, q["modality"], dumps(q["prompt"]),
              dumps(q["options"]) if q["options"] else None,
-             dumps([hash_answer(a) for a in q["answers"]]),
+             dumps([hash_answer(a) for a in answers]),
              0, 1, 1, iso()),
         )
 

@@ -156,6 +156,18 @@
     "p.save_settings": { fr: "💾 Enregistrer les réglages", en: "💾 Save settings", es: "💾 Guardar ajustes" },
     "p.saved": { fr: "Réglages enregistrés ✅", en: "Settings saved ✅", es: "Ajustes guardados ✅" },
     "p.filter_domain": { fr: "Tous les domaines", en: "All domains", es: "Todos los dominios" },
+    "p.del_child": { fr: "🗑 Supprimer", en: "🗑 Delete", es: "🗑 Eliminar" },
+    "p.del_confirm": { fr: "Supprimer définitivement le profil de {n} ?\nToutes ses données (progression, questions, sessions) seront effacées.", en: "Permanently delete {n}'s profile?\nAll their data (progress, questions, sessions) will be erased.", es: "¿Eliminar definitivamente el perfil de {n}?\nTodos sus datos (progreso, preguntas, sesiones) serán borrados." },
+    "p.del_done": { fr: "Profil supprimé : {n}", en: "Profile deleted: {n}", es: "Perfil eliminado: {n}" },
+    "p.assist": { fr: "🧭 Assistant de démarrage", en: "🧭 Setup assistant", es: "🧭 Asistente de inicio" },
+    "p.a_step1": { fr: "Créer un profil enfant", en: "Create a child profile", es: "Crear un perfil de niño" },
+    "p.a_step2": { fr: "Choisir la langue des cours", en: "Choose the course language", es: "Elegir el idioma de los cursos" },
+    "p.a_step3": { fr: "Évaluation initiale ({n} compétence(s) validée(s))", en: "Initial assessment ({n} skill(s) validated)", es: "Evaluación inicial ({n} competencia(s) validada(s))" },
+    "p.a_step4": { fr: "Personnaliser les questions secrètes ({n} active(s))", en: "Personalise secret questions ({n} active)", es: "Personalizar preguntas secretas ({n} activa(s))" },
+    "p.a_step5": { fr: "Première session réalisée", en: "First session completed", es: "Primera sesión realizada" },
+    "p.a_open": { fr: "Ouvrir", en: "Open", es: "Abrir" },
+    "p.a_ready": { fr: "🎉 Tout est prêt ! Bon apprentissage.", en: "🎉 All set! Happy learning.", es: "🎉 ¡Todo listo! Buen aprendizaje." },
+    "p.a_default_q": { fr: "⚠ Remplacez les questions placeholder (exemplaires) par vos vraies questions secrètes.", en: "⚠ Replace the placeholder questions with your real secret questions.", es: "⚠ Sustituya las preguntas de ejemplo por sus verdaderas preguntas secretas." },
 
     /* ---------------- Command Center ---------------- */
     "c.title": { fr: "🖥 JADE BƆNGƆ́ — COMMAND CENTER", en: "🖥 JADE BƆNGƆ́ — COMMAND CENTER", es: "🖥 JADE BƆNGƆ́ — CENTRO DE MANDO" },
@@ -191,13 +203,20 @@
       const b = document.createElement("button");
       b.textContent = FLAGS[l];
       b.title = l.toUpperCase();
+      b.dataset.lang = l;
       if (l === get()) b.classList.add("active");
       b.onclick = () => { set(l); location.reload(); };
       box.appendChild(b);
     });
     document.body.appendChild(box);
   }
+  /* Réaligne l'indicateur actif sans recharger (quand le PROFIL impose sa langue) */
+  function syncSwitcher() {
+    document.querySelectorAll(".langswitch button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.lang === get());
+    });
+  }
 
-  window.I18N = { get, set, t, TTS_LANG, applyStatic, mountSwitcher, FLAGS };
+  window.I18N = { get, set, t, TTS_LANG, applyStatic, mountSwitcher, syncSwitcher, FLAGS };
   document.addEventListener("DOMContentLoaded", () => { mountSwitcher(); applyStatic(); });
 })();
