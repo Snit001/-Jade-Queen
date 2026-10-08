@@ -10,17 +10,29 @@
 
 const app = document.getElementById("app");
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-const T = (k, v) => window.I18N.t("kid." + k, v);
 
 const state = {
   childId: null, childName: "",
-  lang: window.I18N.get(),
+  lang: "fr",                          // ← langue du PROFIL (jamais persistée)
   speechSupport: false,
   challenge: null, qIndex: 0,
   token: null, remaining: 0, timer: null, ticker: null,
   skill: null, game: null, mode: "new",
-  roundOk: 0, roundAttempts: 0, lastTarget: null, breakShownAt: 0,
+  roundOk: 0, roundAttempts: 0, lastTarget: null, breakShownAt: 0, micFails: 0, freePick: false,
   songPlayed: new Set(), breathTimer: null,
+};
+
+/* Tout l'affichage suit la langue du PROFIL regardé — jamais celle stockée
+   sur l'appareil (isolation multi-profils stricte). */
+const T = (k, v) => window.I18N.tIn(state.lang, "kid." + k, v);
+
+/* Le sélecteur de drapeaux, sur la page enfant, ne change QUE la session en
+   cours (override temporaire) — il n'écrit JAMAIS la préférence globale, qui
+   reste celle du tableau de bord des parents. */
+window.__JB_LANG_HOOK__ = (l) => {
+  state.lang = l;
+  window.I18N.syncSwitcher(l);
+  screenWelcome();
 };
 
 /* ---------------- helpers ---------------- */
@@ -49,12 +61,21 @@ async function api(path, opts = {}) {
 /* ---------------- voix : TTS/STT multilingue ---------------- */
 function speak(text, langOverride) {
   try {
-    speechSynthesis.cancel();
     const clean = String(text).replace(/[\p{Extended_Pictographic}\uFE0F]/gu, "").replace(/\n+/g, " ");
-    const u = new SpeechSynthesisUtterance(clean);
     const lang = langOverride || state.lang;
-    u.lang = window.I18N.TTS_LANG[lang] || "fr-FR";
-    u.rate = state.speechSupport ? 0.7 : 0.95;
+    const ttsLang = window.I18N.TTS_LANG[lang] || "fr-FR";
+    const rate = state.speechSupport ? 0.7 : 0.95;
+    // Coquille Android (APK) : la voix passe par le synthétiseur natif du téléphone,
+    // car le WebView Android n'implémente pas l'API Web Speech.
+    if (window.AndroidTTS && typeof window.AndroidTTS.speak === "function") {
+      window.AndroidTTS.stop();
+      window.AndroidTTS.speak(clean, ttsLang, rate, 1.1);
+      return;
+    }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(clean);
+    u.lang = ttsLang;
+    u.rate = rate;
     u.pitch = 1.1;
     const want = u.lang.slice(0, 2).toLowerCase();
     const v = speechSynthesis.getVoices().find((x) => x.lang && x.lang.toLowerCase().startsWith(want));
@@ -78,6 +99,31 @@ function listenOnce(langCode) {
     } catch (e) { resolve(null); }
   });
 }
+/**
+ * [AJOUT — MICRO-REPLI v2.5.1] Écoute avec repli parental automatique.
+ * Le micro peut « exister » sans fonctionner : coquille Windows (Electron)
+ * sans service de reconnaissance Google, permission refusée, ou voix
+ * d'enfant trop aiguë pour des modèles entraînés sur des adultes.
+ * Règle : JAMAIS de blocage pour l'enfant.
+ *   1ᵉʳ échec → « réessaie » (le souffle d'une seconde chance)
+ *   2ᵉ  échec → le micro se retire pour la session, le bouton adulte
+ *               s'illumine (.btn-big) et l'app l'annonce clairement.
+ */
+async function micAttempt(mic, langCode, onHeard, adultBtn) {
+  mic.classList.add("listening");
+  const said = await listenOnce(langCode);
+  mic.classList.remove("listening");
+  if (said) { state.micFails = 0; onHeard(said); return; }
+  state.micFails = (state.micFails || 0) + 1;
+  if (state.micFails >= 2) {
+    try { mic.remove(); } catch (e) { /* déjà parti */ }
+    if (adultBtn) adultBtn.classList.add("btn-big");
+    speak(T("mic_parent_hint"));
+  } else {
+    speak(T("mic_retry"));
+  }
+}
+
 function confetti() {
   const pieces = ["🎉", "⭐", "🌟", "💛", "🎊", "✨"];
   for (let i = 0; i < 26; i++) {
@@ -96,26 +142,23 @@ function ensureChip() {
   if (!c) { c = el('<div class="chip">⏳ …</div>'); document.body.appendChild(c); }
   return c;
 }
-function clearChips() { document.querySelectorAll(".chip, .quiet-quit, .breath-overlay, .repeat-btn").forEach((n) => n.remove()); }
+function clearChips() { document.querySelectorAll(".chip, .quiet-quit, .breath-overlay, .repeat-btn, .garden-back-btn").forEach((n) => n.remove()); }
 
 /* ---------------- ÉCRAN 1 : Bienvenue ---------------- */
 /**
- * Règle absolue : la langue suit le PROFIL de l'enfant, pas l'appareil.
- * Un profil anglophone = interface + leçons + voix 100 % en anglais,
- * même si le téléphone de la famille est réglé en français (bug signalé :
- * « leçons en français prononcées en anglais » — corrigé ainsi).
+ * Règle absolue : la langue suit le PROFIL de l'enfant.
+ * Elle vit dans state.lang (mémoire) — JAMAIS dans le localStorage de
+ * l'appareil : chaque enfant a SA langue, qui n'en impacte aucune autre.
  */
 function applyChildLanguage(child) {
   const lang = child && child.lang ? child.lang : null;
   if (!lang) return;
-  if (window.I18N.get() !== lang) window.I18N.set(lang);
   state.lang = lang;
-  window.I18N.syncSwitcher();
+  window.I18N.syncSwitcher(lang);
 }
 
 async function screenWelcome() {
   stopTimers(); clearChips(); state.token = null;
-  state.lang = window.I18N.get();
   applyProfileClasses();
   let children = [];
   try { children = await api("/api/children"); } catch (e) {}
@@ -193,19 +236,13 @@ function screenQuestion() {
     nodes.push(grid);
   } else {
     nodes.push(el(`<p class="hint">${T("mic_hint")}</p>`));
-    if (SR) {
-      const mic = el('<button class="mic">🎤</button>');
-      mic.onclick = async () => {
-        mic.classList.add("listening");
-        const said = await listenOnce(ch.lang);
-        mic.classList.remove("listening");
-        if (said) answerQuestion(said, false, mic);
-        else speak(T("mic_retry"));
-      };
-      nodes.push(mic);
-    }
     const parentBtn = el(`<button class="btn-soft">${T("adult_validate")}</button>`);
     parentBtn.onclick = () => answerQuestion("", true, parentBtn);
+    if (SR) {
+      const mic = el('<button class="mic">🎤</button>');
+      mic.onclick = () => micAttempt(mic, ch.lang, (said) => answerQuestion(said, false, mic), parentBtn);
+      nodes.push(mic);
+    }
     nodes.push(parentBtn);
   }
   show(...nodes);
@@ -229,7 +266,7 @@ async function answerQuestion(value, parentValidated, btn) {
       state.breakShownAt = 0;
       confetti(); speak(T("play_together", { name: state.childName || "" }));
       startTimers();
-      setTimeout(screenGame, 1200);
+      setTimeout(screenJardin, 1200); // [AJOUT — JARDIN] le foyer = le pré fleuri
     } else {
       if (btn) { btn.classList.add("shake"); setTimeout(() => btn.classList.remove("shake"), 500); }
       speak(T("try_again"));
@@ -315,18 +352,106 @@ function showBreakModal() {
   };
 }
 
+/* ---------------- [AJOUT — BIBLIOTHÈQUE v2.6.1] Les Livres du Jardin ----------------
+   MENU = la pile de livres de la photo de Jade : chaque LIVRE est une
+   rubrique (domaine). On ouvre le livre → ses fleurs à cueillir.
+   La carte 🎯 « Mon programme » reste la lanterne adaptative ; le livre
+   qui abrite la fleur recommandée pulse doucement pour guider l'œil. */
+
+// Une mascotte-emoji par rubrique (côté enfant, décoratif — les données
+// viennent toutes du serveur).
+const DOMAIN_EMOJI = {
+  maths: "🔢", formes: "🟪", arts: "🎨", animaux: "🐾", francais: "📖",
+  anglais: "🗽", espagnol: "💃", logique: "🧩", "bien-etre": "🌙",
+  decouverte: "🌍", comptines: "🎵", invention: "💡", lingala: "🦜", portugais: "🐬",
+};
+
+function flowerButtonNode(fl) {
+  const f = el(`<button class="flower ${fl.status}${fl.recommended ? " rec" : ""}"><span class="fe">${fl.emoji}</span><span class="fl">${fl.label}</span></button>`);
+  if (fl.status === "locked") {
+    f.onclick = () => { f.classList.add("shake"); setTimeout(() => f.classList.remove("shake"), 500); speak(T("garden_bud_voice")); };
+  } else {
+    f.onclick = () => { state.freePick = true; screenGame(fl.id); };
+  }
+  return f;
+}
+
+async function screenJardin() {
+  if (!state.token) return screenWelcome();
+  state.freePick = false;
+  document.querySelectorAll(".garden-back-btn").forEach((n) => n.remove());
+  let g;
+  try { g = await api("/api/learning/garden?token=" + encodeURIComponent(state.token) + "&lang=" + state.lang); }
+  catch (e) {
+    if (e.status === 403 && e.body.detail && e.body.detail.reason === "veto") return screenPauseVeto();
+    return screenWelcome();
+  }
+  const hero = el('<div class="garden-hero"></div>');
+  hero.appendChild(el(`<h1 class="kid-title">${T("garden_title", { name: state.childName || "" })}</h1>`));
+  hero.appendChild(el(`<p class="hint">${T("lib_sub")}</p>`));
+  const prog = el(`<button class="program-card">🎯 <span>${T("garden_program")}</span><span class="pc-sub">⭐ ${g.counts.mastered}/${g.total}</span></button>`);
+  prog.onclick = () => screenGame();
+  hero.appendChild(prog);
+
+  const shelf = el('<div class="shelf"></div>');
+  g.beds.forEach((bed, i) => {
+    const open = bed.flowers.filter((f) => f.status !== "locked").length;
+    const hasRec = bed.flowers.some((f) => f.recommended);
+    const book = el(
+      `<button class="book ${bed.closed ? "closed" : ""}${hasRec ? " rec" : ""}" style="--rot:${(i % 3 - 1) * 1.15}deg; --mx:${(i % 2) * 4}%">` +
+      `<span class="b-emoji">${DOMAIN_EMOJI[bed.domain] || "📕"}</span>` +
+      `<span class="b-title">${bed.domain_label}</span>` +
+      `<span class="b-meta">${open ? "🌸 " + open : "🌱"}</span>` +
+      `<span class="b-heart" aria-hidden="true">🤍</span></button>`
+    );
+    book.onclick = () => screenRubrique(bed);
+    shelf.appendChild(book);
+  });
+
+  show(hero, shelf);
+  speak(T("lib_sub"));
+}
+
+/* Livre ouvert : la rubrique avec ses fleurs à cueillir (vue « pages »). */
+function screenRubrique(bed) {
+  state.freePick = false;
+  document.querySelectorAll(".garden-back-btn").forEach((n) => n.remove());
+  const page = el('<div class="bookpage"></div>');
+  page.appendChild(el(
+    `<div class="page-head">` +
+    `<span class="b-emoji">${DOMAIN_EMOJI[bed.domain] || "📕"}</span>` +
+    `<h2 class="page-title">${bed.domain_label}</h2></div>`
+  ));
+  const grid = el('<div class="bed-grid"></div>');
+  bed.flowers.forEach((fl) => grid.appendChild(flowerButtonNode(fl)));
+  page.appendChild(grid);
+
+  const back = el(`<button class="btn-soft">${T("lib_back")}</button>`);
+  back.onclick = () => screenJardin();
+  show(page, back);
+  speak(bed.domain_label);
+}
+
 /* ---------------- ÉCRAN 3 : Leçon ---------------- */
-async function screenGame() {
+async function screenGame(skillId) {
   if (!state.token) return screenWelcome();
   let step;
-  try { step = await api("/api/learning/step?token=" + encodeURIComponent(state.token) + "&lang=" + state.lang); }
+  const url = "/api/learning/step?token=" + encodeURIComponent(state.token) + "&lang=" + state.lang +
+    (skillId ? "&skill_id=" + encodeURIComponent(skillId) : "");
+  try { step = await api(url); }
   catch (e) {
+    // Fleur choisie mais pas éclose : mot doux + retour au pré (jamais d'erreur sèche)
+    if (e.status === 403 && skillId) { speak(T("garden_bud_voice")); return screenJardin(); }
     if (e.status === 403 && e.body.detail && e.body.detail.reason === "veto") return screenPauseVeto();
     return screenWelcome();
   }
   if (step.mode === "done") return screenAllDone(step.progress);
 
   state.skill = step.skill; state.game = step.game; state.mode = step.mode;
+  if (step.mode !== "choice") { // le programme garde son fil — et le bouton jardin se retire
+    state.freePick = false;
+    document.querySelectorAll(".garden-back-btn").forEach((n) => n.remove());
+  }
   if (step.child) { state.speechSupport = !!step.child.speech_support; state.lang = step.child.lang || state.lang; }
   applyProfileClasses();
   state.roundOk = 0; state.roundAttempts = 0; state.lastTarget = null; state.songPlayed = new Set();
@@ -343,6 +468,12 @@ function gameHeader() {
   const quit = el(`<button class="quiet-quit">${T("finish")}</button>`);
   quit.onclick = async () => { try { await api("/api/session/end", { method: "POST", body: { token: state.token } }); } catch (e) {} screenWelcome(); };
   if (!document.querySelector(".quiet-quit")) document.body.appendChild(quit);
+  // [AJOUT — JARDIN] en jeu libre, petit chemin de retour au pré (sans fermer la session)
+  if (state.freePick && !document.querySelector(".garden-back-btn")) {
+    const gb = el(`<button class="garden-back-btn">${T("garden_back")}</button>`);
+    gb.onclick = () => screenJardin();
+    document.body.appendChild(gb);
+  }
   return wrap;
 }
 function repeatBtn(spokenText, langOverride) {
@@ -362,7 +493,242 @@ function renderGameFrame() {
   if (g.type === "voice") return renderVoice(state.mode);
   if (g.type === "breath") return renderBreath(state.mode);
   if (g.type === "task") return renderTask(state.mode);
+  if (g.type === "draw") return renderDraw(state.mode);
+  if (g.type === "build") return renderBuild(state.mode);
+  if (g.type === "chat") return renderChat(state.mode);
+  if (g.type === "coloring") return renderColoring(state.mode);
   return renderChoice(buildRound(g), state.mode);
+}
+
+/* ---------- conversation animée (type « chat » — lingala, portugais…) ----------
+   Un guide animé qui fait des GESTES DÉMONSTRATIFS (signe de la main,
+   révérence, dodo…) : l'enfant regarde le geste, écoute le mot, le répète —
+   et l'adulte valide la réplique (toujours un succès : c'est un dialogue). */
+function renderChat(mode) {
+  const g = state.game;
+  const lines = g.lines || [];
+  const partner = (g.partner && g.partner.emoji) || "🤗";
+  const cheer = (typeof g.cheer === "string" && g.cheer) || T("bravo");
+  let idx = 0;
+
+  function step() {
+    const l = lines[idx];
+    const mascot = el(`<div class="mascot-wrap"><div class="mascot ${l.gesture || "wave"}">${partner}</div><div class="mascot-shadow"></div></div>`);
+    const said = el(`<div class="chat-bubble"><span class="chat-big">${l.say_l}</span></div>`);
+    said.appendChild(repeatBtn(l.say_l));
+    const counter = el(`<span class="chip-tag">${idx + 1} / ${lines.length}</span>`);
+    const done = el(`<button class="btn-big">${T("adult_validate")}</button>`);
+    done.onclick = async () => {
+      confetti();
+      idx += 1;
+      if (idx >= lines.length) {
+        speak(cheer);
+        await outcome(true); afterRound(mode);
+      } else {
+        speak(T("bravo")); setTimeout(step, 700);
+      }
+    };
+    show(gameHeader(mode), counter, promptNode(l.say_i18n), mascot, said, done,
+      el(`<p class="hint">${T("adult_validate")}</p>`));
+    setTimeout(() => speak(l.say_i18n + " " + l.say_l), 250);
+  }
+  step();
+}
+
+/* ---------- fabrique & assemble (Créer & Inventer — type « build ») ----------
+   Un PLAN schématisé (pièces numérotées) + des pièces à JOINDRE une à une.
+   Résultat GARANTI : la mauvaise pièce gigote (aucune pénalité), la bonne
+   s'emboîte — à la fin, la création prend vie : confettis + encouragement. */
+function renderBuild(mode) {
+  const g = state.game;
+  const parts = g.parts || [];
+  const intro = (typeof g.intro === "string" && g.intro) || T("build_hint");
+
+  const plan = el('<div class="build-plan"></div>');
+  parts.forEach((p, i) => {
+    plan.appendChild(el(`<div class="build-step" data-i="${i}"><span class="build-num">${i + 1}</span><span class="build-piece">${p.emoji}</span></div>`));
+    if (i < parts.length - 1) plan.appendChild(el('<span class="build-arrow">➜</span>'));
+  });
+
+  const zone = el(`<div class="build-zone"><span class="build-zone-hint">${T("build_zone")}</span></div>`);
+  const tray = el('<div class="build-tray"></div>');
+
+  let next = 0;
+  const markNext = () => {
+    plan.querySelectorAll(".build-step").forEach((st) => st.classList.remove("next"));
+    const st = plan.querySelector(`[data-i="${next}"]`);
+    if (st) st.classList.add("next");                          // la prochaine pièce PULSE : l'œil suit le plan
+  };
+  shuffle(parts.map((p, i) => i)).forEach((idx) => {
+    const p = parts[idx];
+    const b = el(`<button class="build-part">${p.emoji}<small>${p.label || ""}</small></button>`);
+    b.onclick = () => {
+      if (idx !== next) {                                      // pas la bonne pièce : elle gigote, c'est tout
+        b.classList.add("shake"); setTimeout(() => b.classList.remove("shake"), 500);
+        speak(parts[next].label || "");
+        return;
+      }
+      b.remove();                                              // bonne pièce → elle s'emboîte ✨
+      const step = plan.querySelector(`[data-i="${idx}"]`);
+      if (step) { step.classList.remove("next"); step.classList.add("done"); }
+      const hint = zone.querySelector(".build-zone-hint"); if (hint) hint.remove();
+      zone.classList.add("build-compose");                     // la création se COMPOSE en hauteur, grand format
+      zone.appendChild(el(`<span class="build-placed">${p.emoji}</span>`));
+      speak(p.label || "");
+      next += 1;
+      markNext();
+      if (next >= parts.length) {                              // RÉSULTAT : toujours obtenu 🎉
+        zone.appendChild(el(`<div class="build-result">${(g.result && g.result.emoji) || "🎉"}</div>`));
+        tray.remove();
+        confetti();
+        const cheer = (typeof g.cheer === "string" && g.cheer) || T("bravo");
+        setTimeout(() => speak(cheer), 400);
+        setTimeout(async () => { await outcome(true); afterRound(mode); }, 1500);
+      }
+    };
+    tray.appendChild(b);
+  });
+
+  show(gameHeader(mode), promptNode(intro), plan, zone, tray);
+  markNext();
+  speak(intro);
+}
+
+/* ---------- fiche de fabrication illustrée (schémas étape par étape + matériel) ---------- */
+function guideFiche(guide, materiel) {
+  const f = el(`<div class="guide"><div class="guide-title">${T("guide_title")}</div>${materiel ? `<div class="guide-mat">${materiel}</div>` : ""}<div class="guide-steps"></div></div>`);
+  const row = f.querySelector(".guide-steps");
+  guide.forEach((s, i) => {
+    row.appendChild(el(`<div class="guide-step"><span class="build-num">${i + 1}</span><span class="guide-emoji">${s.emoji}</span><span class="guide-label">${s.label}</span></div>`));
+  });
+  return f;
+}
+
+/* ---------- moteur de dessin partagé (ardoise + coloriages) ----------
+   Traits GLISSÉS au doigt ou au stylet, 3 tailles de mine (finesse/précision
+   demandées : mine fine 7px pour les détails, moyenne 16px, grosse 30px) +
+   gomme qui n'efface QUE la couleur de l'enfant (jamais les contours). */
+function setupCanvasPaint(cv, palette) {
+  const ctx = cv.getContext("2d");
+  const paint = { ctx, color: palette[0], size: 16, eraser: false };
+  paint.setColor = (c) => { paint.color = c; paint.eraser = false; };
+  paint.setSize = (s) => { paint.size = s; paint.eraser = false; };
+  paint.setEraser = (on) => { paint.eraser = on; };
+  const r0 = cv.getBoundingClientRect();
+  cv.width = Math.max(50, Math.round(r0.width));
+  cv.height = Math.max(50, Math.round(r0.height));
+  const pt = (e) => {
+    const r = cv.getBoundingClientRect();
+    return [(e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)];
+  };
+  let last = null;
+  cv.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    last = pt(e);
+    ctx.globalCompositeOperation = paint.eraser ? "destination-out" : "source-over";
+    ctx.fillStyle = paint.color;
+    ctx.beginPath(); ctx.arc(last[0], last[1], (paint.eraser ? paint.size + 10 : paint.size) / 2, 0, Math.PI * 2); ctx.fill();
+  });
+  cv.addEventListener("pointermove", (e) => {
+    if (!last) return;
+    e.preventDefault();
+    const p = pt(e);
+    ctx.globalCompositeOperation = paint.eraser ? "destination-out" : "source-over";
+    ctx.strokeStyle = paint.color;
+    ctx.lineWidth = paint.eraser ? paint.size + 20 : paint.size;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    last = p;
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => cv.addEventListener(ev, () => { last = null; }));
+  return paint;
+}
+function paletteRow(palette, paint) {
+  const pal = el('<div class="draw-pal"></div>');
+  palette.forEach((c, i) => {
+    const d = el(`<button class="draw-dot${i === 0 ? " active" : ""}" style="background:${c}" aria-label="couleur"></button>`);
+    d.onclick = () => { paint.setColor(c); pal.querySelectorAll(".draw-dot,.draw-eraser").forEach((x) => x.classList.remove("active")); d.classList.add("active"); };
+    pal.appendChild(d);
+  });
+  return pal;
+}
+function nibRow(paint, pal) {
+  const tools = el('<div class="draw-tools"></div>');
+  const sizes = [[7, "draw_thin"], [16, "draw_normal"], [30, "draw_thick"]];
+  const btns = sizes.map(([sz, key], i) => {
+    const b = el(`<button class="draw-size${i === 1 ? " active" : ""}">${T(key)}</button>`);
+    b.onclick = () => {
+      paint.setSize(sz);
+      tools.querySelectorAll(".draw-size").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      if (pal) pal.querySelectorAll(".draw-eraser").forEach((x) => x.classList.remove("active"));
+    };
+    tools.appendChild(b); return b;
+  });
+  const gum = el(`<button class="draw-size draw-eraser">${T("draw_eraser")}</button>`);
+  gum.onclick = () => { paint.setEraser(true); tools.querySelectorAll(".draw-size").forEach((x) => x.classList.remove("active")); gum.classList.add("active"); };
+  tools.appendChild(gum);
+  return tools;
+}
+
+/* ---------- ardoise magique (Créer & Inventer — type « draw ») ----------
+   Un espace pour CONCEvoir : l'enfant dessine au doigt ou au stylet, l'adulte valide.
+   Jamais de « mauvaise réponse » : outcome(true) systématique (anti-frustration). */
+function renderDraw(mode) {
+  const g = state.game;
+  const intro = (typeof g.intro === "string" && g.intro) ||
+    { fr: "Dessine avec ton doigt ou ton stylet !", en: "Draw with your finger or your stylus!", es: "¡Dibuja con tu dedo o tu lápiz óptico!" }[state.lang] || "Dessine !";
+  const palette = (Array.isArray(g.palette) && g.palette.length) ? g.palette
+    : ["#e11d48", "#2563eb", "#16a34a", "#eab308", "#9333ea", "#0ea5e9", "#f97316", "#1e293b"];
+
+  const cv = el('<canvas class="draw-canvas"></canvas>');
+  const palHolder = el('<div></div>');
+  const toolsHolder = el('<div></div>');
+  const done = el(`<button class="btn-big">${T("draw_done")}</button>`);
+  done.onclick = async () => { confetti(); speak(T("bravo")); await outcome(true); afterRound(mode); };
+
+  show(gameHeader(mode), promptNode(intro), cv, palHolder, toolsHolder, done, el(`<p class="hint">${T("draw_adult")}</p>`));
+
+  const paint = setupCanvasPaint(cv, palette);
+  const pal = paletteRow(palette, paint);
+  const tools = nibRow(paint, pal);
+  const clear = el(`<button class="draw-size">${T("draw_clear")}</button>`);
+  clear.onclick = () => paint.ctx.clearRect(0, 0, cv.width, cv.height);
+  tools.appendChild(clear);
+  palHolder.replaceWith(pal); toolsHolder.replaceWith(tools);
+  speak(intro);
+}
+
+/* ---------- coloriage de précision (type « coloring ») ----------
+   Une grande image à CONTOURS ÉPAIS : l'enfant colorie SOUS le trait (calque
+   transparent posé par-dessus) → le dessin reste toujours net, même si la
+   couleur déborde. Mines fines/moyennes/grosses + gomme — doigt ou stylet. */
+function renderColoring(mode) {
+  const g = state.game;
+  const title = (typeof g.title === "string" && g.title) || T("draw_adult");
+  const palette = ["#e11d48", "#2563eb", "#16a34a", "#eab308", "#9333ea", "#0ea5e9", "#f97316", "#7c3aed", "#84cc16", "#fb7185", "#f59e0b", "#1e293b"];
+
+  const wrap = el('<div class="color-wrap"></div>');
+  const cv = el('<canvas class="draw-canvas color-canvas"></canvas>');
+  const lines = el(`<div class="color-lines">${g.art || ""}</div>`);
+  wrap.appendChild(cv); wrap.appendChild(lines);
+
+  const palHolder = el('<div></div>');
+  const toolsHolder = el('<div></div>');
+  const done = el(`<button class="btn-big">${T("draw_done")}</button>`);
+  done.onclick = async () => { confetti(); speak(T("bravo")); await outcome(true); afterRound(mode); };
+
+  show(gameHeader(mode), promptNode(title), wrap, palHolder, toolsHolder, done, el(`<p class="hint">${T("draw_adult")}</p>`));
+
+  const paint = setupCanvasPaint(cv, palette);
+  const pal = paletteRow(palette, paint);
+  const tools = nibRow(paint, pal);
+  const clear = el(`<button class="draw-size">${T("draw_clear")}</button>`);
+  clear.onclick = () => paint.ctx.clearRect(0, 0, cv.width, cv.height);
+  tools.appendChild(clear);
+  palHolder.replaceWith(pal); toolsHolder.replaceWith(tools);
+  speak(title);
 }
 
 /* ---------- construction des manches (tous types « à choix ») ---------- */
@@ -491,9 +857,9 @@ function renderChoice(round, mode) {
     (() => { const hint = el('<p class="hint" style="margin-bottom:2px"></p>'); return hint; })());
   speak(round.speak || app.querySelector(".q-text").textContent);
   const grid = el(`<div class="grid-options ${opts.length > 5 ? "many" : ""}"></div>`);
-  shuffle(opts).forEach((o) => {
+  shuffle(opts).forEach((o, i) => {
     const fs = o.fontSize ? `font-size:${o.fontSize}px` : "";
-    const b = el(`<button class="opt ${o.big ? "textbig" : ""}">${o.emoji ? `<span class="oe" style="${fs}">${o.emoji}</span>` : ""}<span class="ol" ${o.emoji ? "" : 'style="font-size:26px"'}>${o.label || ""}</span></button>`);
+    const b = el(`<button class="opt opt-r${i % 6} ${o.big ? "textbig" : ""}">${o.emoji ? `<span class="oe" style="${fs}">${o.emoji}</span>` : ""}<span class="ol" ${o.emoji ? "" : 'style="font-size:26px"'}>${o.label || ""}</span></button>`);
     b.onclick = async () => {
       state.roundAttempts += 1;
       if (o.id === round.targetId) {
@@ -533,24 +899,21 @@ function renderVoice(mode) {
   const listen = el(`<button class="btn-soft">${T("voice_listen")}</button>`);
   listen.onclick = () => speak(target, targetLang);
   const nodes = [gameHeader(mode), promptNode(intro), big, listen];
+  const adult = el(`<button class="btn-soft">${T("adult_validate")}</button>`);
+  adult.onclick = async () => { state.roundOk += 1; confetti(); speak(T("bravo")); await outcome(true); afterRound(mode); };
   if (SR) {
     const mic = el(`<button class="mic">🎤</button>`);
-    mic.onclick = async () => {
-      mic.classList.add("listening");
-      const said = await listenOnce(targetLang);
-      mic.classList.remove("listening");
-      if (said && matchLoose(said, target)) {
+    mic.onclick = () => micAttempt(mic, targetLang, async (said) => {
+      if (matchLoose(said, target)) {
         state.roundOk += 1; confetti(); speak(T("bravo"));
         await outcome(true); afterRound(mode);
       } else {
         speak(T("try_again"));
-        if (said) { state.roundAttempts += 1; await outcome(false); }
+        state.roundAttempts += 1; await outcome(false);
       }
-    };
+    }, adult);
     nodes.push(mic);
   }
-  const adult = el(`<button class="btn-soft">${T("adult_validate")}</button>`);
-  adult.onclick = async () => { state.roundOk += 1; confetti(); speak(T("bravo")); await outcome(true); afterRound(mode); };
   nodes.push(adult);
   show(...nodes);
   speak(intro + ". " + target, targetLang);
@@ -597,7 +960,10 @@ function renderTask(mode) {
   listen.onclick = () => speak(task);
   const done = el(`<button class="btn-big">${T("task_done")}</button>`);
   done.onclick = async () => { confetti(); speak(T("bravo")); await outcome(true); afterRound(mode); };
-  show(gameHeader(mode), promptNode(task), el(`<p class="hint">${T("task_adult")}</p>`), listen, done);
+  const nodes = [gameHeader(mode), promptNode(task)];
+  if (Array.isArray(g.guide) && g.guide.length) nodes.push(guideFiche(g.guide, g.materiel));  // schémas + moyens de bord
+  nodes.push(el(`<p class="hint">${T("task_adult")}</p>`), listen, done);
+  show(...nodes);
   speak(task);
 }
 
@@ -616,7 +982,7 @@ function renderSong(mode) {
   function maybeSongDone() {
     if (state.songPlayed.size >= g.lines.length && !document.querySelector("[data-songdone]")) {
       const b = el(`<button class="btn-big" data-songdone="1">${T("song_done")}</button>`);
-      b.onclick = async () => { confetti(); speak(T("song_bravo")); await outcome(true); screenGame(); };
+      b.onclick = async () => { confetti(); speak(T("song_bravo")); await outcome(true); if (state.freePick) screenJardin(); else screenGame(); };
       app.appendChild(b);
     }
   }
@@ -639,8 +1005,10 @@ async function outcome(success) {
 function afterRound(mode) {
   const g = state.game;
   const goal = g.rounds || 3;
-  if (state.roundOk >= goal) { confetti(); clearTimeout(state.breathTimer); setTimeout(screenGame, 900); return; }
-  if (state.roundAttempts >= goal + 6) { setTimeout(screenGame, 400); return; } // on avance sans frustrer
+  // [AJOUT — JARDIN] fleur cueillie librement → on retourne au pré ; sinon le programme continue
+  const next = state.freePick ? screenJardin : screenGame;
+  if (state.roundOk >= goal) { confetti(); clearTimeout(state.breathTimer); setTimeout(next, 900); return; }
+  if (state.roundAttempts >= goal + 6) { setTimeout(next, 400); return; } // on avance sans frustrer
   renderGameFrame();
 }
 function screenAllDone(progress) {
@@ -656,5 +1024,16 @@ function screenAllDone(progress) {
 
 /* ---------------- go ---------------- */
 if (window.speechSynthesis) speechSynthesis.getVoices();
+
+/* ---------- décor vivant (émojis flottants, purement décoratif) ---------- */
+function mountDeco() {
+  if (document.querySelector(".deco")) return;
+  const wrap = el('<div class="deco" aria-hidden="true"></div>');
+  ["🎈", "⭐", "🌈", "☁️", "🎈", "✨", "☁️", "🎵", "🧸", "🌟"].forEach((e, i) => {
+    wrap.appendChild(el(`<span style="left:${(i * 11 + 3) % 96}vw; animation-duration:${15 + i * 3}s; animation-delay:${-i * 2.5}s">${e}</span>`));
+  });
+  document.body.appendChild(wrap);
+}
+document.addEventListener("DOMContentLoaded", mountDeco);
 window.I18N.applyStatic();
 screenWelcome();

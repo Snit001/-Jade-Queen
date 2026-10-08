@@ -98,9 +98,17 @@ function buildSelector() {
 }
 
 /* ---------------- cartes ---------------- */
+/* Langue du CONTENU affiché : celle du PROFIL regardé (isolation stricte —
+   les leçons de Lily s'affichent en anglais, celles d'Alba en espagnol).
+   Les menus du tableau de bord, eux, restent dans la langue du parent. */
+function childLang() {
+  const c = CHILDREN.find((x) => x.id === CHILD);
+  return (c && c.lang) || "fr";
+}
+
 async function loadAll() {
-  const ov = await api("/api/parent/overview" + qs() + "&lang=" + window.I18N.get());
-  TREE = await api("/api/parent/tree" + qs() + "&lang=" + window.I18N.get());
+  const ov = await api("/api/parent/overview" + qs() + "&lang=" + childLang());
+  TREE = await api("/api/parent/tree" + qs() + "&lang=" + childLang());
   renderAge(ov);
   renderToday(ov);
   renderSettings(ov);

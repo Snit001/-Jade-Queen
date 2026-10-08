@@ -29,6 +29,9 @@ DOMAIN_NAMES: dict[str, dict[str, str]] = {
     "bien-etre": {"fr": "Bien-être", "en": "Wellbeing", "es": "Bienestar"},
     "decouverte": {"fr": "Découverte du monde", "en": "World discovery", "es": "Descubrir el mundo"},
     "comptines": {"fr": "Comptines", "en": "Songs", "es": "Canciones"},
+    "invention": {"fr": "Créer & Inventer", "en": "Create & Invent", "es": "Crear e Inventar"},
+    "lingala": {"fr": "Lingala 🇨🇩", "en": "Lingala 🇨🇩", "es": "Lingala 🇨🇩"},
+    "portugais": {"fr": "Portugais 🇵🇹", "en": "Portuguese 🇵🇹", "es": "Portugués 🇵🇹"},
 }
 
 

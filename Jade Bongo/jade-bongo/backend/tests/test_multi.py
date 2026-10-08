@@ -88,7 +88,7 @@ def test_phase_suivant_dob_et_questions_cloisonnees():
 def test_vue_parents_multi_enfants():
     ov_jade = client.get("/api/parent/overview", headers=H["h"]).json()
     ov_leo = client.get("/api/parent/overview", headers=H["h"], params={"child_id": LEO}).json()
-    assert ov_jade["skills_total"] == 62                               # v2.0 : arbre complet
-    assert ov_leo["skills_total"] == 62
+    assert ov_jade["skills_total"] == 103                               # v2.3 : + Créer & Inventer
+    assert ov_leo["skills_total"] == 103                               # v2.3 : + Créer & Inventer
     assert ov_leo["mastered_count"] == 0                               # Léo au début de SON graphe
     assert ov_leo["lock"]["locked"] is False                           # déverrouillé plus haut

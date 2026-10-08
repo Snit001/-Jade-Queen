@@ -207,6 +207,6 @@ def test_audit_et_command_center():
 
     mission = client.get("/api/command/mission", headers=h).json()
     assert mission["kpi"]["phase"] == "PHASE_1"
-    assert mission["kpi"]["skills_total"] == 62                     # v2.0 : arbre complet « plafond ouvert »
+    assert mission["kpi"]["skills_total"] == 103                     # v2.3 : + rubrique « Créer & Inventer »
     assert mission["services"] and len(mission["services"]) == 9
     assert client.get("/api/command/mission").status_code == 401        # parent requis

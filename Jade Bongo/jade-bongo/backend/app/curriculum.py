@@ -65,6 +65,17 @@ def localize_game(game: dict[str, Any], lang: str) -> dict[str, Any]:
         g["intro"] = tr(g["intro"])
     if isinstance(g.get("title"), dict):
         g["title"] = tr(g["title"])
+    if isinstance(g.get("cheer"), dict):                       # v2.4 — cri de victoire « build »
+        g["cheer"] = tr(g["cheer"])
+    if isinstance(g.get("guide"), list):                       # v2.4 — fiche de fabrication illustrée
+        g["guide"] = [dict(st, label=tr(st.get("label"))) for st in g["guide"]]
+    if isinstance(g.get("materiel"), dict):                    # v2.5 — « moyens de bord » (maison)
+        g["materiel"] = tr(g["materiel"])
+    if isinstance(g.get("lines"), list):                       # v2.5 — conversation animée (« chat »)
+        g["lines"] = [dict(ln, say_i18n=tr(ln.get("say_i18n"))) if isinstance(ln, dict) and "say_i18n" in ln else ln
+                      for ln in g["lines"]]
+    if isinstance(g.get("result"), dict):                      # v2.4 — objet résultat « build »
+        g["result"] = dict(g["result"], label=tr(g["result"].get("label")))
     if isinstance(g.get("lines"), dict):
         g["lines"] = g["lines"].get(lang) or g["lines"].get("fr") or []
     if isinstance(g.get("tasks"), list):
@@ -82,6 +93,8 @@ def localize_game(game: dict[str, Any], lang: str) -> dict[str, Any]:
 
     if isinstance(g.get("items"), list):
         g["items"] = fix_items(g["items"])
+    if isinstance(g.get("parts"), list):                       # v2.4 — pièces à assembler (« build »)
+        g["parts"] = fix_items(g["parts"])
     if isinstance(g.get("options"), list):
         g["options"] = fix_items(g["options"])
     if isinstance(g.get("scenes"), list):
@@ -278,6 +291,54 @@ def record_outcome(con: sqlite3.Connection, child_id: str, skill_id: str,
         "consec_fails": consec_fails,
         "suggest_break": suggest_break,
     }
+
+
+# ------------------------------------------------------------------ [AJOUT — JARDIN v2.6]
+# « Le Jardin de Jade » : l'enfant CHOISIT librement sa fleur, ou suit le
+# programme (recommandation adaptative qui scintille). Rien de la base ne
+# change : mêmes sessions, même bien-être, même verrou de prérequis —
+# une pousse 🌱 se regarde, ne se cueille pas.
+
+def garden(con: sqlite3.Connection, child_id: str, lang: str = "fr") -> dict[str, Any]:
+    """Le pré fleuri de l'enfant : parterres (domaines) + fleurs (compétences)
+    avec statut et fleur recommandée par le système adaptatif."""
+    lang = norm_lang(lang)
+    tree = skill_tree(con, child_id, lang)
+    nxt = next_step(con, child_id, lang)
+    rec = (nxt.get("skill") or {}).get("id") if nxt.get("skill") else None
+    beds = []
+    for d in tree["domains"]:
+        flowers = [{
+            "id": s["id"], "label": s["label"], "emoji": s["emoji"],
+            "level": s["level"], "domain": s["domain"],
+            "status": s["status"], "mastered": s["mastered"],
+            "mastery": s["mastery"], "recommended": s["id"] == rec,
+        } for s in d["skills"]]
+        if any(f["status"] != "locked" for f in flowers):
+            # parterre ouvert : fleurs écloses + pousses (l'aspiration fait rêver)
+            beds.append({"domain": d["domain"], "domain_label": d["domain_label"],
+                         "closed": False, "flowers": flowers})
+        else:
+            # parterre entièrement fermé : on dévoile juste la 1re pousse (mystère préservé)
+            beds.append({"domain": d["domain"], "domain_label": d["domain_label"],
+                         "closed": True, "flowers": flowers[:1]})
+    return {"lang": lang, "beds": beds, "counts": tree["counts"],
+            "total": tree["total"], "recommended": rec}
+
+
+def step_for_skill(con: sqlite3.Connection, child_id: str, skill_id: str,
+                   lang: str = "fr") -> dict[str, Any] | None:
+    """Jeu d'une fleur CHOISIE librement (mode « choice »).
+    None si pousse verrouillée ou compétence inconnue — l'app retourne
+    alors au jardin avec un mot doux, jamais une erreur sèche."""
+    lang = norm_lang(lang)
+    row = q_one(con, "SELECT * FROM skills WHERE id = ?", (skill_id,))
+    if row is None:
+        return None
+    mmap = mastery_map(con, child_id)
+    if skill_status(con, skill_id, mmap) == "locked":
+        return None
+    return _payload(con, row, mode="choice", mmap=mmap, lang=lang)
 
 
 # ------------------------------------------------------------------ vues parents

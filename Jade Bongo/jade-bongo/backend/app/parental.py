@@ -71,19 +71,40 @@ def children_list(con: sqlite3.Connection) -> list[dict[str, Any]]:
 def patch_child(con: sqlite3.Connection, child_id: str, data: dict[str, Any]) -> dict[str, Any]:
     """Réglages d'adaptation de l'enfant (autorité parentale, auditée) :
     langue des cours (fr/en/es), profil d'attention (normal|courte),
-    soutien langage (voix ralentie, consignes répétées)."""
+    soutien langage (voix ralentie, consignes répétées).
+    ISOLATION MULTI-PROFILS : ces réglages ne touchent QUE cet enfant.
+    Un changement de langue rafraîchit de plus ses questions placeholder
+    (jamais celles personnalisées par les parents)."""
     row = q_one(con, "SELECT * FROM children WHERE id = ?", (child_id,))
     if row is None:
         raise ValueError("Enfant inconnu.")
 
     fields: list[str] = []
     params: list[Any] = []
+    info: dict[str, Any] = {}
 
     if "lang" in data and data["lang"] is not None:
         lang = str(data["lang"]).split("-")[0].lower()
         if lang not in LANGS:
             raise ValueError(f"Langue non prise en charge : {lang} (fr|en|es).")
-        fields.append("lang = ?"); params.append(lang)
+        if lang != (row["lang"] or "fr"):
+            fields.append("lang = ?"); params.append(lang)
+            # 🌍 La langue du profil gouverne TOUT -> ses questions d'identification
+            # par défaut suivent aussi (version == 1 = jamais personnalisées).
+            from .seed import seed_default_questions
+            untouched = q_all(
+                con,
+                """SELECT id FROM identity_questions
+                   WHERE child_id = ? AND id LIKE '%-default-%' AND version = 1""",
+                (child_id,),
+            )
+            for q in untouched:
+                con.execute("DELETE FROM identity_questions WHERE id = ?", (q["id"],))
+            seed_default_questions(con, child_id,
+                                   firstname=row["display_name"], dob=row["dob"], lang=lang)
+            audit(con, "parent.child_lang_reseed", child_id=child_id, actor="parent",
+                  payload={"lang": lang, "questions_reseeded": len(untouched)})
+            info["questions_reseeded"] = len(untouched)
     if "attention" in data and data["attention"] is not None:
         att = str(data["attention"]).lower()
         if att not in ATTENTION_PROFILES:
@@ -114,7 +135,7 @@ def patch_child(con: sqlite3.Connection, child_id: str, data: dict[str, Any]) ->
     con.execute(f"UPDATE children SET {', '.join(fields)} WHERE id = ?", tuple(params))
     audit(con, "parent.child_updated", child_id=child_id, actor="parent",
           payload={k: data[k] for k in data if k in ("lang", "attention", "speech_support", "display_name", "emoji", "dob")})
-    return {"id": child_id, "updated": [f.split(" ")[0] for f in fields]}
+    return {"id": child_id, "updated": [f.split(" ")[0] for f in fields], **info}
 
 
 def tree(con: sqlite3.Connection, child_id: str, lang: str = "fr") -> dict[str, Any]:

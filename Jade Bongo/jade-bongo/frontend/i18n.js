@@ -1,9 +1,13 @@
 "use strict";
 /* ============================================================
    Jade Bɔngɔ́ — i18n (interfaces en 3 langues : 🇫🇷 🇬🇧 🇪🇸)
-   - La langue d'AFFICHAGE de l'appareil (localStorage jb_lang)
-   - La langue des COURS de l'enfant est fixée par les parents
-     (et l'appareil peut la pousser via ?lang= sur l'API)
+   - v2.2 : la langue du PROFIL gouverne tout son monde (interface +
+     leçons + voix). L'appareil n'a PAS de langue globale pour l'enfant :
+     le sélecteur de drapeaux de la page enfant ne change QUE la session
+     (__JB_LANG_HOOK__), sans jamais écrire de préférence globale.
+   - Pages parents / commande : préférence d'affichage de l'appareil
+     (localStorage jb_lang). tIn(lang, key) pour forcer une langue.
+   - v2.3 : clés de l'ardoise « Créer & Inventer » (kid.draw_*).
    ============================================================ */
 (function () {
   const LANGS = ["fr", "en", "es"];
@@ -22,6 +26,14 @@
     "kid.q_progress": { fr: "Question {i} / {n}", en: "Question {i} / {n}", es: "Pregunta {i} / {n}" },
     "kid.mic_hint": { fr: "🎤 Dis ta réponse à voix haute !", en: "🎤 Say your answer out loud!", es: "🎤 ¡Di tu respuesta en voz alta!" },
     "kid.mic_retry": { fr: "Je n'ai pas entendu. Réessaie !", en: "I didn't hear you. Try again!", es: "No te he oído. ¡Inténtalo otra vez!" },
+    "kid.mic_parent_hint": { fr: "Je n'entends pas bien — Papa/Maman valide ta réponse !", en: "I can't hear well — a grown-up can confirm your answer!", es: "No oigo bien — ¡un adulto puede validar tu respuesta!" },
+    "kid.garden_title": { fr: "🌸 Le Jardin de {name}", en: "🌸 {name}'s Garden", es: "🌸 El Jardín de {name}" },
+    "kid.garden_sub": { fr: "Touche une fleur pour jouer, ou suis ton programme !", en: "Tap a flower to play, or follow your program!", es: "¡Toca una flor para jugar, o sigue tu programa!" },
+    "kid.garden_program": { fr: "Mon programme", en: "My program", es: "Mi programa" },
+    "kid.garden_back": { fr: "🌸 Jardin", en: "🌸 Garden", es: "🌸 Jardín" },
+    "kid.garden_bud_voice": { fr: "Cette fleur n'est pas encore éclose. Bientôt !", en: "This flower hasn't bloomed yet. Soon!", es: "¡Esta flor aún no ha florecido! ¡Pronto!" },
+    "kid.lib_sub": { fr: "Chaque livre cache des fleurs à cueillir. Touche un livre !", en: "Every book hides flowers to pick. Tap a book!", es: "¡Cada libro esconde flores por recoger. ¡Toca un libro!" },
+    "kid.lib_back": { fr: "📚 Ma bibliothèque", en: "📚 My library", es: "📚 Mi biblioteca" },
     "kid.adult_validate": { fr: "✅ Un adulte valide ma réponse", en: "✅ A grown-up confirms my answer", es: "✅ Un adulto valida mi respuesta" },
     "kid.bravo": { fr: "Bravo !", en: "Well done!", es: "¡Bravo!" },
     "kid.try_again": { fr: "Essaie encore, tu vas y arriver !", en: "Try again, you can do it!", es: "¡Inténtalo otra vez, tú puedes!" },
@@ -67,6 +79,16 @@
     "kid.task_listen": { fr: "🔊 Écoute la consigne", en: "🔊 Listen to the instruction", es: "🔊 Escucha la consigna" },
     "kid.task_done": { fr: "C'est fait ! ✅", en: "All done! ✅", es: "¡Hecho! ✅" },
     "kid.task_adult": { fr: "Fais la consigne (sans écran, avec un adulte), puis valide !", en: "Do the activity (off-screen, with a grown-up), then validate!", es: "Haz la actividad (sin pantalla, con un adulto), ¡y valida!" },
+    "kid.draw_done": { fr: "✅ J'ai fini !", en: "✅ I'm done!", es: "✅ ¡Terminé!" },
+    "kid.draw_clear": { fr: "🧽 Effacer", en: "🧽 Clear", es: "🧽 Borrar" },
+    "kid.draw_thin": { fr: "🖊️ Fin", en: "🖊️ Thin", es: "🖊️ Fino" },
+    "kid.draw_thick": { fr: "🖌️ Épais", en: "🖌️ Thick", es: "🖌️ Grueso" },
+    "kid.draw_adult": { fr: "💛 L'adulte admire ma création et valide !", en: "💛 A grown-up admires my creation and validates!", es: "💛 ¡Un adulto admira mi creación y la valida!" },
+    "kid.guide_title": { fr: "📋 Fiche de fabrication", en: "📋 Making sheet", es: "📋 Hoja de fabricación" },
+    "kid.build_hint": { fr: "🧩 Assemble les pièces en suivant le plan !", en: "🧩 Put the pieces together, following the plan!", es: "🧩 ¡Une las piezas siguiendo el plan!" },
+    "kid.build_zone": { fr: "Pose les pièces ici, une par une 👇", en: "Place the pieces here, one by one 👇", es: "Pon las piezas aquí, de una en una 👇" },
+    "kid.draw_normal": { fr: "🖊️ Moyenne", en: "🖊️ Medium", es: "🖊️ Media" },
+    "kid.draw_eraser": { fr: "🧼 Gomme", en: "🧼 Eraser", es: "🧼 Goma" },
     "kid.song_listen": { fr: "Écoute chaque phrase, puis répète !", en: "Listen to each line, then repeat!", es: "¡Escucha cada frase y repite!" },
     "kid.song_done": { fr: "J'ai tout écouté ! 🎵", en: "I listened to everything! 🎵", es: "¡Lo he escuchado todo! 🎵" },
     "kid.song_bravo": { fr: "Quelle belle voix ! Bravo !", en: "What a beautiful voice! Well done!", es: "¡Qué voz tan bonita! ¡Bravo!" },
@@ -176,17 +198,20 @@
   };
 
   function get() {
+    /* Préférence d'AFFICHAGE de l'appareil (pages parents / commande).
+       La page enfant, elle, vit en MÉMOIRE via state.lang + tIn (v2.2 —
+       isolation stricte : le profil gouverne son monde, pas l'appareil). */
     const l = localStorage.getItem("jb_lang") || "fr";
     return LANGS.includes(l) ? l : "fr";
   }
   function set(lang) { localStorage.setItem("jb_lang", lang); }
-  function t(key, vars) {
-    const lang = get();
+  function tIn(lang, key, vars) {
     const entry = DICT[key];
     let s = entry ? (entry[lang] || entry.fr || key) : key;
     if (vars) Object.keys(vars).forEach((k) => { s = s.replaceAll("{" + k + "}", vars[k]); });
     return s;
   }
+  function t(key, vars) { return tIn(get(), key, vars); }
   const TTS_LANG = { fr: "fr-FR", en: "en-US", es: "es-ES" };
 
   function applyStatic(root) {
@@ -205,18 +230,25 @@
       b.title = l.toUpperCase();
       b.dataset.lang = l;
       if (l === get()) b.classList.add("active");
-      b.onclick = () => { set(l); location.reload(); };
+      b.onclick = () => {
+        if (typeof window.__JB_LANG_HOOK__ === "function") {
+          window.__JB_LANG_HOOK__(l);    // page enfant : override de SESSION, rien d'écrit
+        } else {
+          set(l); location.reload();     // pages parents/commande : préférence appareil
+        }
+      };
       box.appendChild(b);
     });
     document.body.appendChild(box);
   }
-  /* Réaligne l'indicateur actif sans recharger (quand le PROFIL impose sa langue) */
-  function syncSwitcher() {
+  /* Réaligne l'indicateur actif sans recharger (profil ou override session) */
+  function syncSwitcher(lang) {
+    const cur = lang || get();
     document.querySelectorAll(".langswitch button").forEach((b) => {
-      b.classList.toggle("active", b.dataset.lang === get());
+      b.classList.toggle("active", b.dataset.lang === cur);
     });
   }
 
-  window.I18N = { get, set, t, TTS_LANG, applyStatic, mountSwitcher, syncSwitcher, FLAGS };
+  window.I18N = { get, set, t, tIn, TTS_LANG, applyStatic, mountSwitcher, syncSwitcher, FLAGS };
   document.addEventListener("DOMContentLoaded", () => { mountSwitcher(); applyStatic(); });
 })();

@@ -1,7 +1,13 @@
 """Données initiales (idempotentes) — v2.0 « Plafond ouvert ».
 
-GRAPHE DE COMPÉTENCES : 62 nœuds répartis en 11 domaines, trilingues
+GRAPHE DE COMPÉTENCES : 103 nœuds répartis en 14 domaines, trilingues
 (français / English / español), reliés par des prérequis (skill_edges).
+v2.3 : nouveau domaine « 🚀 Créer & Inventer » — boucle du
+petit inventeur : imaginer → concevoir → construire → tester → expliquer.
+v2.4 : 7 plans « Fabrique & Assemble » (résultat garanti), fiches de
+fabrication illustrées, et le domaine 🇨🇩 LINGALA (langue bantoue).
+v2.5 : conversations ANIMÉES (guides gestuels 🦜🐬), 🇵🇹 PORTUGAIS, 6
+COLORIAGES de précision (doigt/stylet), activités aux « moyens de bord ».
 
 PHILOSOPHIE (demande explicite des parents) :
 - L'ÂGE ne fixe QUE les règles de protection (temps d'écran, accompagnement).
@@ -77,6 +83,57 @@ SHAPES_2 = [
 def _skill(ord_i: int, sid: str, domain: str, level: int, emoji: str, name: dict, game: dict) -> dict:
     return {"id": sid, "ord_i": ord_i, "domain": domain, "level": level,
             "emoji": emoji, "name": name, "game": game}
+
+
+def _build(emoji: str, label: dict, parts: list[dict], intro: dict, cheer: dict) -> dict:
+    """Jeu « Fabrique & Assemble » (v2.4) : plan de pièces numérotées que
+    l'enfant joint une à une à l'écran. AUCUN échec possible : la mauvaise
+    pièce gigote, la bonne s'emboîte — le RÉSULTAT est garanti (création animée)."""
+    return {"type": "build", "parts": parts,
+            "result": {"emoji": emoji, "label": label},
+            "intro": intro, "cheer": cheer, "rounds": 1}
+
+
+
+
+# --------- images de COLORIAGE (v2.5) : grandes formes à contours épais,
+# dessinées pour être coloriées au doigt ou au stylet — le trait reste net
+def _art(inner: str) -> str:
+    return ('<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><g fill="none" '
+            'stroke="#1f2937" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">'
+            + inner + "</g></svg>")
+
+
+ART_MAISON = _art('<circle cx="332" cy="52" r="26"/><path d="M332 14v12M332 78v12M292 52h12M362 52h12"/>'
+                  '<path d="M70 145 L200 45 L330 145"/><rect x="92" y="145" width="216" height="120"/>'
+                  '<rect x="180" y="202" width="44" height="63"/><rect x="112" y="170" width="46" height="42"/>'
+                  '<rect x="246" y="170" width="46" height="42"/>')
+ART_VOITURE = _art('<path d="M52 205 L52 165 Q52 145 75 145 L112 145 L145 100 Q151 90 164 90 L252 90 '
+                   'Q265 90 272 101 L297 145 L338 145 Q358 145 358 166 L358 205 Z"/>'
+                   '<circle cx="112" cy="210" r="26"/><circle cx="296" cy="210" r="26"/>'
+                   '<circle cx="112" cy="210" r="9"/><circle cx="296" cy="210" r="9"/>'
+                   '<path d="M158 103 L253 103 L272 142 L138 142 Z"/><path d="M204 93 L204 141"/>')
+ART_FLEUR = _art('<circle cx="200" cy="118" r="30"/><ellipse cx="200" cy="58" rx="22" ry="30"/>'
+                 '<ellipse cx="252" cy="98" rx="22" ry="30" transform="rotate(72 252 98)"/>'
+                 '<ellipse cx="232" cy="166" rx="22" ry="30" transform="rotate(144 232 166)"/>'
+                 '<ellipse cx="168" cy="166" rx="22" ry="30" transform="rotate(216 168 166)"/>'
+                 '<ellipse cx="148" cy="98" rx="22" ry="30" transform="rotate(288 148 98)"/>'
+                 '<path d="M200 148 L200 262"/><path d="M200 226 Q160 206 138 232 Q168 252 200 236"/>')
+ART_POISSON = _art('<ellipse cx="185" cy="150" rx="105" ry="68"/><path d="M288 150 L352 108 L352 192 Z"/>'
+                   '<circle cx="132" cy="134" r="9"/><path d="M70 150 Q100 168 130 150"/>'
+                   '<path d="M196 96 Q216 62 244 86"/><path d="M300 60 q8 -14 16 0 q8 14 16 0"/>')
+ART_PAPILLON = _art('<ellipse cx="200" cy="150" rx="10" ry="58"/><circle cx="200" cy="82" r="9"/>'
+                    '<path d="M196 92 Q182 66 168 58"/><path d="M204 92 Q218 66 232 58"/>'
+                    '<ellipse cx="136" cy="104" rx="48" ry="58" transform="rotate(-16 136 104)"/>'
+                    '<ellipse cx="264" cy="104" rx="48" ry="58" transform="rotate(16 264 104)"/>'
+                    '<ellipse cx="150" cy="202" rx="38" ry="44" transform="rotate(14 150 202)"/>'
+                    '<ellipse cx="250" cy="202" rx="38" ry="44" transform="rotate(-14 250 202)"/>')
+ART_FUSEE = _art('<path d="M200 34 Q262 92 262 178 L262 226 L138 226 L138 178 Q138 92 200 34 Z"/>'
+                 '<circle cx="200" cy="132" r="24"/><circle cx="200" cy="132" r="9"/>'
+                 '<path d="M138 196 L96 252 L138 240"/><path d="M262 196 L304 252 L262 240"/>'
+                 '<path d="M184 232 Q200 292 216 232"/>'
+                 '<path d="M70 60 l6 14 l14 6 l-14 6 l-6 14 l-6 -14 l-14 -6 l14 -6 Z"/>'
+                 '<path d="M320 70 l5 12 l12 5 l-12 5 l-5 12 l-5 -12 l-12 -5 l12 -5 Z"/>')
 
 
 # ------------------------------------------------------------------ les 62 compétences
@@ -371,6 +428,407 @@ SKILLS: list[dict] = [
                              "Morning bells are ringing, morning bells are ringing 🔔", "Ding ding dong, ding ding dong 🔔"],
                       "es": ["¿Estás durmiendo, estás durmiendo? 🎵", "Fray Santiago, Fray Santiago 😴",
                              "Suenan las campanas, suenan las campanas 🔔", "Din din don, din din don 🔔"]}}),
+    # ============ 🚀 CRÉER & INVENTER (16) — rubrique v2.3 ============
+    # Boucle du petit inventeur : Imaginer → Concevoir → Construire → Tester → Expliquer.
+    # Règle d'or anti-frustration : tout ce qui est CRÉATION (draw/task) n'a jamais de
+    # « mauvaise réponse » — l'adulte valide, l'enfant gagne toujours. Seules les notions
+    # FACTUELLES (sciences, ordre, pourquoi) sont des quiz/tap/séquences notés.
+    _skill(63, "inv-obs", "invention", 2, "🔍", L("Œil de scientifique : j'observe", "Scientist's eye: I observe", "Ojo de científica: yo observo"),
+           _tap([_item("loupe", "🔍", "la loupe", "the magnifying glass", "la lupa"),
+                 _item("balance", "⚖️", "la balance", "the scale", "la balanza"),
+                 _item("thermo", "🌡️", "le thermomètre", "the thermometer", "el termómetro"),
+                 _item("aimant", "🧲", "l'aimant", "the magnet", "el imán")], rounds=4,
+                instruction=L("Les outils du savant ! Touche : {label} {emoji}", "The scientist's tools! Touch: {label} {emoji}", "¡Las herramientas del científico! Toca: {label} {emoji}"))),
+    _skill(64, "inv-cause", "invention", 2, "🔮", L("Devine ce qui va se passer", "Guess what will happen", "Adivina lo que va a pasar"),
+           {"type": "quiz", "rounds": 3, "scenes": [
+               {"q": L("On laisse un glaçon au soleil ☀️ Que va-t-il faire ?", "We leave an ice cube in the sun ☀️ What will it do?", "Dejamos un cubito de hielo al sol ☀️ ¿Qué hará?"),
+                "options": [_item("melt", "💧", "il fond", "it melts", "se derrite"),
+                            _item("grow", "🧊", "il grossit", "it grows", "crece"),
+                            _item("fly", "🕊️", "il s'envole", "it flies away", "sale volando")],
+                "answer": "melt"},
+               {"q": L("On lâche un ballon gonflé 🎈 Que fait-il ?", "We let go of an inflated balloon 🎈 What does it do?", "Soltamos un globo inflado 🎈 ¿Qué hace?"),
+                "options": [_item("up", "🎈", "il s'envole", "it flies up", "sale volando"),
+                            _item("stone", "🪨", "il tombe comme un caillou", "it drops like a stone", "cae como una piedra"),
+                            _item("sleep", "😴", "il dort", "it sleeps", "duerme")],
+                "answer": "up"},
+               {"q": L("On arrose une petite graine 🌱 Que va-t-elle devenir ?", "We water a little seed 🌱 What will it become?", "Regamos una semillita 🌱 ¿En qué se convertirá?"),
+                "options": [_item("plant", "🌻", "une plante", "a plant", "una planta"),
+                            _item("car", "🚗", "une voiture", "a car", "un coche"),
+                            _item("fish", "🐟", "un poisson", "a fish", "un pez")],
+                "answer": "plant"}]}),
+    _skill(65, "draw-animal", "invention", 2, "🦄", L("Dessine ton animal rêvé", "Draw your dream animal", "Dibuja tu animal soñado"),
+           {"type": "draw", "rounds": 1,
+            "intro": L("Invente un animal qui n'existe pas ! Dessine-le avec ton doigt sur l'ardoise magique ✨",
+                       "Invent an animal that doesn't exist! Draw it with your finger on the magic board ✨",
+                       "¡Inventa un animal que no existe! Dibújalo con tu dedo en la pizarra mágica ✨"),
+            "palette": ["#e11d48", "#2563eb", "#16a34a", "#eab308", "#9333ea", "#0ea5e9", "#f97316", "#1e293b"]}),
+    _skill(66, "inv-eau", "invention", 3, "💧", L("Expérience : ça coule ou ça flotte ?", "Experiment: sink or float?", "Experimento: ¿se hunde o flota?"),
+           {"type": "task", "tasks": [
+               L("Avec l'adulte, remplis une bassine d'eau 💧 Mets-y 3 objets (bouchon, cuillère, éponge…) et dis pour chacun : ÇA COULE ou ÇA FLOTTE ! L'adulte valide.",
+                 "With a grown-up, fill a bowl with water 💧 Put in 3 objects (cork, spoon, sponge…) and say for each one: it SINKS or it FLOATS! A grown-up validates.",
+                 "Con un adulto, llena un recipiente con agua 💧 Mete 3 objetos (corcho, cuchara, esponja…) y di de cada uno: ¡SE HUNDE o FLOTA! Un adulto lo valida.")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : une bassine (ou un grand saladier), de l’eau, 3 petits objets : bouchon, cuillère en plastique, éponge…", "At-home supplies 🎒: a basin (or big bowl), water, 3 small things: cork, plastic spoon, sponge…", "Material de casa 🎒: un barreño (o un tazón grande), agua, 3 objetos pequeños: corcho, cuchara de plástico, esponja…"),
+            "guide": [
+               {"emoji": "🪣", "label": L("1. Remplis la bassine d'eau", "1. Fill the bowl with water", "1. Llena el recipiente de agua")},
+               {"emoji": "🤏", "label": L("2. Prends un objet", "2. Pick up an object", "2. Toma un objeto")},
+               {"emoji": "💧", "label": L("3. Plonge ! Ça coule ou ça flotte ?", "3. Dip it in! Sinks or floats?", "3. ¡Mójalo! ¿Se hunde o flota?")}]}),
+    _skill(67, "inv-aimant", "invention", 3, "🧲", L("Expérience : le pouvoir de l'aimant", "Experiment: magnet power", "Experimento: el poder del imán"),
+           {"type": "task", "tasks": [
+               L("Avec l'adulte, promène un aimant 🧲 sur 5 objets de la maison (clé, pièce, jouet, papier, cuillère). Dis lesquels COLLENT ! L'adulte valide.",
+                 "With a grown-up, try a magnet 🧲 on 5 things at home (key, coin, toy, paper, spoon). Say which ones STICK! A grown-up validates.",
+                 "Con un adulto, prueba un imán 🧲 con 5 objetos de casa (llave, moneda, juguete, papel, cuchara). Di cuáles SE PEGAN. Un adulto lo valida.")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : un aimant de frigo, 5 objets : clé, pièce, feuille de papier, jouet, cuillère", "At-home supplies 🎒: a fridge magnet, 5 things: key, coin, sheet of paper, toy, spoon", "Material de casa 🎒: un imán de nevera, 5 objetos: llave, moneda, hoja de papel, juguete, cuchara"),
+            "guide": [
+               {"emoji": "🧲", "label": L("1. Prends l'aimant", "1. Take the magnet", "1. Toma el imán")},
+               {"emoji": "🔎", "label": L("2. Approche-le de chaque objet", "2. Bring it near each thing", "2. Acércalo a cada objeto")},
+               {"emoji": "✨", "label": L("3. Ça colle ? Tu as trouvé !", "3. It sticks? You found one!", "3. ¿Se pega? ¡Lo hallaste!")}]}),
+    _skill(68, "inv-graine", "invention", 3, "🌱", L("La graine devient plante", "The seed becomes a plant", "La semilla se convierte en planta"),
+           {"type": "sequence", "rounds": 3,
+            "options": [_item("seed", "🫘", "graine", "seed", "semilla"),
+                        _item("water", "💧", "eau", "water", "agua"),
+                        _item("sun", "☀️", "soleil", "sun", "sol"),
+                        _item("plant", "🌻", "plante", "plant", "planta")],
+            "puzzles": [{"seq": ["seed", "water", "sun"], "answer": "plant"}]}),
+    _skill(69, "inv-histoire", "invention", 3, "📖", L("J'invente une histoire", "I invent a story", "Invento una historia"),
+           {"type": "task", "tasks": [
+               L("Raconte une histoire à voix haute ! Commence par « Il était une fois… » : un héros, un problème, une fin heureuse. L'adulte écoute et valide 📖✨",
+                 "Tell a story out loud! Start with “Once upon a time…”: a hero, a problem, a happy ending. A grown-up listens and validates 📖✨",
+                 "¡Cuenta una historia en voz alta! Empieza con «Érase una vez…»: un héroe, un problema y un final feliz. Un adulto escucha y valida 📖✨")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : rien du tout ! Ta voix suffit — ou des crayons et une feuille pour dessiner ton héros", "At-home supplies 🎒: nothing at all! Your voice is enough — or crayons and paper to draw your hero", "Material de casa 🎒: ¡nada! Tu voz basta — o crayones y una hoja para dibujar tu héroe"),
+            "guide": [
+               {"emoji": "🦸", "label": L("1. Choisis un héros", "1. Choose a hero", "1. Elige un héroe")},
+               {"emoji": "😱", "label": L("2. Invente-lui un problème", "2. Give them a problem", "2. Invéntale un problema")},
+               {"emoji": "🎉", "label": L("3. Trouve une fin heureuse !", "3. Find a happy ending!", "3. ¡Busca un final feliz!")}]}),
+    _skill(70, "inv-robot", "invention", 3, "🤖", L("Je construis un robot", "I build a robot", "Construyo un robot"),
+           {"type": "task", "tasks": [
+               L("Avec l'adulte, construis un ROBOT avec des objets recyclés : rouleaux de carton, boîtes, bouchons, papier d'alu… Ajoute des boutons imaginaires ! L'adulte valide 🤖",
+                 "With a grown-up, build a ROBOT from recycled things: cardboard tubes, boxes, bottle tops, foil… Add imaginary buttons! A grown-up validates 🤖",
+                 "Con un adulto, construye un ROBOT con cosas recicladas: tubos de cartón, cajas, tapones, papel de aluminio… ¡Añade botones imaginarios! Un adulto lo valida 🤖")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : rouleaux de papier toilette ou d’essuie-tout, petites boîtes, bouchons, papier d’alu, ruban adhésif — l’adulte manie ciseaux et colle", "At-home supplies 🎒: toilet/kitchen roll tubes, small boxes, bottle caps, foil, sticky tape — the grown-up handles scissors and glue", "Material de casa 🎒: tubos de papel higiénico o de cocina, cajitas, tapones, papel de aluminio, cinta adhesiva — el adulto usa tijeras y pegamento"),
+            "guide": [
+               {"emoji": "🧴", "label": L("1. Rassemble : cartons, bouchons, alu", "1. Gather: cardboard, caps, foil", "1. Junta: cartón, tapas, aluminio")},
+               {"emoji": "🔗", "label": L("2. Assemble tête, corps, bras", "2. Join head, body, arms", "2. Une cabeza, cuerpo, brazos")},
+               {"emoji": "🎛️", "label": L("3. Dessine les boutons magiques", "3. Draw the magic buttons", "3. Dibuja los botones mágicos")}]}),
+    _skill(71, "inv-tour", "invention", 3, "🏗️", L("L'architecte : la plus haute tour", "The architect: the tallest tower", "La arquitecta: la torre más alta"),
+           {"type": "task", "tasks": [
+               L("Construis la tour LA PLUS HAUTE possible avec des blocs, des boîtes ou des livres… jusqu'à 10 étages ! Compte-les à voix haute. L'adulte valide 🏗️",
+                 "Build the TALLEST tower you can with blocks, boxes or books… up to 10 floors! Count them out loud. A grown-up validates 🏗️",
+                 "¡Construye la torre MÁS ALTA posible con bloques, cajas o libros… hasta 10 pisos! Cuéntalos en voz alta. Un adulto lo valida 🏗️")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : blocs, ou boîtes en carton, ou livres — et une surface plane (table ou sol)", "At-home supplies 🎒: blocks, or cardboard boxes, or books — and a flat surface (table or floor)", "Material de casa 🎒: bloques, cajas de cartón o libros — y una superficie plana (mesa o suelo)"),
+            "guide": [
+               {"emoji": "🟥", "label": L("1. Pose la première brique bien à plat", "1. Lay the first brick really flat", "1. Pon el primer ladrillo bien plano")},
+               {"emoji": "🧱", "label": L("2. Empile en alternant les pièces", "2. Stack, alternating the pieces", "2. Apila alternando las piezas")},
+               {"emoji": "🔟", "label": L("3. Compte les étages à voix haute !", "3. Count the floors out loud!", "3. ¡Cuenta los pisos en voz alta!")}]}),
+    _skill(72, "inv-boite", "invention", 3, "📦", L("Nouvelle vie pour une boîte", "A new life for a box", "Una vida nueva para una caja"),
+           {"type": "task", "tasks": [
+               L("Prends une boîte en carton vide 📦 et transforme-la : maison, fusée, voiture, bateau… Dis ce qu'elle est devenue ! L'adulte valide.",
+                 "Take an empty cardboard box 📦 and turn it into something: house, rocket, car, boat… Say what it became! A grown-up validates.",
+                 "Toma una caja de cartón vacía 📦 y transfórmala: casa, cohete, coche, barco… ¡Di en qué se convirtió! Un adulto lo valida.")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : une boîte en carton (chaussures, céréales…), ciseaux (pour l’adulte !), colle ou ruban adhésif, crayons", "At-home supplies 🎒: a cardboard box (shoes, cereal…), scissors (for the grown-up!), glue or sticky tape, crayons", "Material de casa 🎒: una caja de cartón (zapatos, cereales…), tijeras (¡para el adulto!), pegamento o cinta, crayones"),
+            "guide": [
+               {"emoji": "📦", "label": L("1. Prends la boîte vide", "1. Take the empty box", "1. Toma la caja vacía")},
+               {"emoji": "✂️", "label": L("2. Avec l'adulte : coupe, colle, décore", "2. With a grown-up: cut, glue, decorate", "2. Con un adulto: corta, pega, decora")},
+               {"emoji": "🚀", "label": L("3. Dis ce qu'elle est devenue !", "3. Say what it became!", "3. ¡Di en qué se convirtió!")}]}),
+    _skill(73, "inv-pont", "invention", 4, "🌉", L("L'ingénieure : le pont", "The engineer: the bridge", "La ingeniera: el puente"),
+           {"type": "task", "tasks": [
+               L("Avec des livres, du carton ou des légos, construis un PONT entre deux chaises 🌉 Test : pose un petit jouet dessus. Il tient ? L'adulte valide !",
+                 "With books, cardboard or building bricks, build a BRIDGE between two chairs 🌉 Test: put a small toy on it. Does it hold? A grown-up validates!",
+                 "Con libros, cartón o bloques, construye un PUENTE entre dos sillas 🌉 Prueba: pon un juguete encima. ¿Aguanta? ¡Un adulto lo valida!")],
+            "rounds": 1,
+            "materiel": L("Matériel maison 🎒 : 2 chaises, des livres rigides ou du carton ou des légos, un petit jouet pour le test", "At-home supplies 🎒: 2 chairs, hardback books or cardboard or building bricks, a small toy for the test", "Material de casa 🎒: 2 sillas, libros gruesos o cartón o bloques de construcción, un juguete pequeño para la prueba"),
+            "guide": [
+               {"emoji": "🪑", "label": L("1. Écarte deux chaises", "1. Spread two chairs apart", "1. Separa dos sillas")},
+               {"emoji": "🌉", "label": L("2. Pose ton pont entre les deux", "2. Lay your bridge across them", "2. Coloca tu puente entre las dos")},
+               {"emoji": "🧸", "label": L("3. Test : le jouet traverse ?", "3. Test: does the toy cross?", "3. Prueba: ¿cruza el juguete?")}]}),
+    _skill(74, "inv-plan", "invention", 4, "📐", L("Dans le bon ordre !", "In the right order!", "¡En el orden correcto!"),
+           {"type": "sequence", "rounds": 3,
+            "options": [_item("bread", "🍞", "pain", "bread", "pan"),
+                        _item("cheese", "🧀", "fromage", "cheese", "queso"),
+                        _item("lettuce", "🥬", "salade", "lettuce", "lechuga"),
+                        _item("sandwich", "🥪", "sandwich", "sandwich", "sándwich")],
+            "puzzles": [{"seq": ["bread", "cheese", "lettuce"], "answer": "sandwich"}]}),
+    _skill(75, "inv-probleme", "invention", 4, "🧠", L("La débrouille des inventeurs", "The inventors' cleverness", "El ingenio de los inventores"),
+           {"type": "quiz", "rounds": 3, "scenes": [
+               {"q": L("Ton jouet est passé sous le canapé 🛋️ Comment l'attraper ?", "Your toy slipped under the sofa 🛋️ How do you get it?", "Tu juguete se metió debajo del sofá 🛋️ ¿Cómo lo sacas?"),
+                "options": [_item("stick", "🪄", "avec un bâton, je le pousse", "with a stick, I push it out", "con un palo, lo empujo"),
+                            _item("cry", "😭", "je pleure", "I cry", "lloro"),
+                            _item("sofa", "🤪", "je porte le canapé sur ma tête", "I carry the sofa on my head", "cargo el sofá en mi cabeza")],
+                "answer": "stick"},
+               {"q": L("Tu as plein de blocs à porter dans l'autre pièce 🧱 Comment faire en UN voyage ?", "You have lots of blocks to carry to the other room 🧱 How can you do it in ONE trip?", "Tienes muchos bloques que llevar a la otra habitación 🧱 ¿Cómo lo haces en UN viaje?"),
+                "options": [_item("box", "📦", "dans une boîte, tout d'un coup", "in a box, all at once", "en una caja, todo de golpe"),
+                            _item("slow", "🐢", "un par un, dix voyages", "one by one, ten trips", "uno a uno, diez viajes"),
+                            _item("hide", "🙈", "je les cache", "I hide them", "los escondo")],
+                "answer": "box"},
+               {"q": L("Le ballon est coincé dans l'arbre 🎈🌳 Que faire ?", "The balloon is stuck in the tree 🎈🌳 What should you do?", "El globo se quedó en el árbol 🎈🌳 ¿Qué haces?"),
+                "options": [_item("help", "🙋", "je demande de l'aide à un adulte", "I ask a grown-up for help", "pido ayuda a un adulto"),
+                            _item("climb", "🧗", "je grimpe tout seul jusqu'en haut", "I climb to the top all alone", "trepo solo hasta arriba"),
+                            _item("rocks", "🪨", "je lance des cailloux", "I throw rocks", "tiro piedras")],
+                "answer": "help"}]}),
+    _skill(76, "draw-machine", "invention", 5, "⚙️", L("J'invente une machine", "I invent a machine", "Invento una máquina"),
+           {"type": "draw", "rounds": 1,
+            "intro": L("Invente une MACHINE ! Une machine à bonbons 🍬 à voyager 🚀 ou à ranger ta chambre… Dessine-la avec ton doigt !",
+                       "Invent a MACHINE! A candy machine 🍬 a travel machine 🚀 or a room-tidying machine… Draw it with your finger!",
+                       "¡Inventa una MÁQUINA! ¡Una máquina de dulces 🍬 de viajar 🚀 o de ordenar tu cuarto… Dibújala con tu dedo!"),
+            "palette": ["#e11d48", "#2563eb", "#16a34a", "#eab308", "#9333ea", "#0ea5e9", "#f97316", "#1e293b"]}),
+    _skill(77, "inv-nom", "invention", 5, "🏷️", L("Je baptise mon invention", "I name my invention", "Le pongo nombre a mi invento"),
+           {"type": "task", "tasks": [
+               L("Ta machine a besoin d'un NOM d'inventeur ! Dis-le fort : un nom que personne n'a jamais entendu (exemple : « le Bonbonotron 3000 »). L'adulte valide 🏷️",
+                 "Your machine needs an inventor's NAME! Say it out loud — a name nobody has ever heard (example: “the Candytron 3000”). A grown-up validates 🏷️",
+                 "¡Tu máquina necesita un NOMBRE de inventora! Dilo fuerte: un nombre que nadie ha oído jamás (ejemplo: «el Dulcetrón 3000»). Un adulto lo valida 🏷️")],
+            "rounds": 1,
+            "guide": [
+               {"emoji": "👀", "label": L("1. Regarde bien ta machine", "1. Look closely at your machine", "1. Mira bien tu máquina")},
+               {"emoji": "🔤", "label": L("2. Assemble des sons rigolos", "2. Put funny sounds together", "2. Junta sonidos graciosos")},
+               {"emoji": "🏷️", "label": L("3. Dis le nom fort et fier !", "3. Say the name loud and proud!", "3. ¡Di el nombre fuerte y orgullosa!")}]}),
+    _skill(78, "inv-pourquoi", "invention", 5, "🤔", L("Le pourquoi des choses", "The why of things", "El porqué de las cosas"),
+           {"type": "quiz", "rounds": 3, "scenes": [
+               {"q": L("Pourquoi les roues sont-elles rondes ? 🛞", "Why are wheels round? 🛞", "¿Por qué las ruedas son redondas? 🛞"),
+                "options": [_item("roll", "😊", "pour rouler tout doux", "to roll smoothly", "para rodar suave"),
+                            _item("pretty", "🌸", "parce que c'est joli", "because they are pretty", "porque son bonitas"),
+                            _item("square", "🟦", "pour faire carré", "to be square", "para ser cuadradas")],
+                "answer": "roll"},
+               {"q": L("Pourquoi les maisons ont-elles un toit ? 🏠", "Why do houses have a roof? 🏠", "¿Por qué las casas tienen tejado? 🏠"),
+                "options": [_item("dry", "☔", "pour rester au sec quand il pleut", "to stay dry when it rains", "para no mojarnos cuando llueve"),
+                            _item("sky", "☁️", "pour coller au ciel", "to stick to the sky", "para pegarse al cielo"),
+                            _item("ant", "🐜", "pour cacher le soleil aux fourmis", "to hide the sun from the ants", "para esconder el sol a las hormigas")],
+                "answer": "dry"},
+               {"q": L("Pourquoi met-on la ceinture en voiture ? 🚗", "Why do we wear a seatbelt in the car? 🚗", "¿Por qué nos ponemos el cinturón en el coche? 🚗"),
+                "options": [_item("safe", "🛡️", "elle nous protège", "it keeps us safe", "nos protege"),
+                            _item("stuck", "😤", "pour être coincé", "to be stuck", "para estar atrapados"),
+                            _item("bow", "🎀", "pour faire joli", "to look pretty", "para estar guapos")],
+                "answer": "safe"}]}),
+    # ---- 🧩 Fabrique & Assemble (7 plans garantis) — résultat TOUJOURS obtenu ----
+    _skill(79, "build-maison", "invention", 2, "🏠", L("Je fabrique une maison", "I build a house", "Fabrico una casa"),
+           _build("🏠", L("une maison", "a house", "una casa"),
+                  [_item("b-mur", "🧱", "les murs", "the walls", "las paredes"),
+                   _item("b-porte", "🚪", "la porte", "the door", "la puerta"),
+                   _item("b-fenetre", "🪟", "la fenêtre", "the window", "la ventana"),
+                   _item("b-toit", "🔺", "le toit", "the roof", "el tejado")],
+                  L("Assemble ta MAISON ! Suis le plan : 1, 2, 3, 4… les pièces s'emboîtent comme par magie ✨",
+                    "Build your HOUSE! Follow the plan: 1, 2, 3, 4… the pieces click together like magic ✨",
+                    "¡Monta tu CASA! Sigue el plan: 1, 2, 3, 4… las piezas encajan como por magia ✨"),
+                  L("Tu as construit une MAISON ! Bravo, architecte ! 🏠",
+                    "You built a HOUSE! Well done, architect! 🏠",
+                    "¡Has construido una CASA! ¡Bravo, arquitecta! 🏠"))),
+    _skill(80, "build-voiture", "invention", 3, "🚗", L("Je fabrique une voiture", "I build a car", "Fabrico un coche"),
+           _build("🚗", L("une voiture", "a car", "un coche"),
+                  [_item("b-roues", "🛞", "les roues", "the wheels", "las ruedas"),
+                   _item("b-caisse", "🟦", "la carrosserie", "the body", "la carrocería"),
+                   _item("b-vitre", "🪟", "le pare-brise", "the windshield", "el parabrisas"),
+                   _item("b-gyro", "🚨", "le gyrophare", "the siren light", "la sirena")],
+                  L("Vroum ! Assemble ta VOITURE : d'abord les roues, puis le reste du plan 🧩",
+                    "Vroom! Build your CAR: first the wheels, then the rest of the plan 🧩",
+                    "¡Vrum! Monta tu COCHE: primero las ruedas, luego el resto del plan 🧩"),
+                  L("Vroum vroum ! Ta VOITURE est prête à rouler ! 🚗",
+                    "Vroom vroom! Your CAR is ready to go! 🚗",
+                    "¡Vrum vrum! ¡Tu COCHE está listo para rodar! 🚗"))),
+    _skill(81, "build-robot", "invention", 3, "🤖", L("Je fabrique un robot", "I build a robot", "Fabrico un robot"),
+           _build("🤖", L("un robot", "a robot", "un robot"),
+                  [_item("b-pieds", "🦶", "les pieds", "the feet", "los pies"),
+                   _item("b-corps", "📦", "le corps", "the body", "el cuerpo"),
+                   _item("b-tete", "📺", "la tête", "the head", "la cabeza"),
+                   _item("b-antenne", "📡", "l'antenne", "the antenna", "la antena")],
+                  L("Bip bip ! Fabrique ton ROBOT pièce par pièce, du bas vers le haut 🤖",
+                    "Beep boop! Build your ROBOT piece by piece, from the bottom up 🤖",
+                    "¡Bip bip! Fabrica tu ROBOT pieza a pieza, de abajo hacia arriba 🤖"),
+                  L("Bip-bip ! Ton ROBOT est vivant ! Tu es un vrai inventeur ! 🤖",
+                    "Beep-boop! Your ROBOT is alive! You are a real inventor! 🤖",
+                    "¡Bip-bip! ¡Tu ROBOT está vivo! ¡Eres un verdadero inventor! 🤖"))),
+    _skill(82, "build-fusee", "invention", 3, "🚀", L("Je fabrique une fusée", "I build a rocket", "Fabrico un cohete"),
+           _build("🚀", L("une fusée", "a rocket", "un cohete"),
+                  [_item("b-moteur", "🔥", "le moteur", "the engine", "el motor"),
+                   _item("b-reservoir", "🍾", "le réservoir", "the tank", "el depósito"),
+                   _item("b-hublot", "⭕", "le hublot", "the porthole", "el ojo de buey"),
+                   _item("b-pointe", "🔺", "la pointe", "the nose cone", "la punta")],
+                  L("Direction les étoiles ! Assemble ta FUSÉE : moteur, réservoir, hublot, pointe 🚀",
+                    "To the stars! Build your ROCKET: engine, tank, porthole, nose cone 🚀",
+                    "¡Rumbo a las estrellas! Monta tu COHETE: motor, depósito, ojo de buey y punta 🚀"),
+                  L("3… 2… 1… DÉCOLLAGE ! Ta FUSÉE file vers les étoiles ! 🚀✨",
+                    "3… 2… 1… LIFTOFF! Your ROCKET zooms to the stars! 🚀✨",
+                    "¡3… 2… 1… DESPEGUE! ¡Tu COHETE vuela hacia las estrellas! 🚀✨"))),
+    _skill(83, "build-fleur", "invention", 3, "🌻", L("Je fais pousser une fleur", "I grow a flower", "Hago crecer una flor"),
+           _build("🌻", L("une fleur", "a flower", "una flor"),
+                  [_item("b-graine", "🫘", "la graine", "the seed", "la semilla"),
+                   _item("b-eau", "💧", "l'eau", "the water", "el agua"),
+                   _item("b-tige", "🌱", "la tige", "the stem", "el tallo"),
+                   _item("b-feuilles", "🍃", "les feuilles", "the leaves", "las hojas"),
+                   _item("b-petale", "🌻", "les pétales", "the petals", "los pétalos")],
+                  L("Comme une vraie jardinière ! Fais POUSSER ta fleur : graine, eau, tige, feuilles, pétales 🌻",
+                    "Like a real gardener! GROW your flower: seed, water, stem, leaves, petals 🌻",
+                    "¡Como una verdadera jardinera! Haz CRECER tu flor: semilla, agua, tallo, hojas, pétalos 🌻"),
+                  L("Ta FLEUR a poussé ! Quelle jardinière de génie ! 🌻",
+                    "Your FLOWER has grown! What a clever gardener! 🌻",
+                    "¡Tu FLOR ha crecido! ¡Qué jardinera tan genial! 🌻"))),
+    _skill(84, "build-pont", "invention", 4, "🌉", L("Je fabrique un pont", "I build a bridge", "Fabrico un puente"),
+           _build("🌉", L("un pont", "a bridge", "un puente"),
+                  [_item("b-pile1", "🧱", "le premier pilier", "the first pillar", "el primer pilar"),
+                   _item("b-pile2", "🧱", "le deuxième pilier", "the second pillar", "el segundo pilar"),
+                   _item("b-tablier", "📏", "le tablier", "the deck", "el tablero"),
+                   _item("b-test", "🚗", "la voiture de test", "the test car", "el coche de prueba")],
+                  L("Ingénieure en chef ! Construis ton PONT : deux piliers, le tablier… puis TESTE avec la voiture 🌉",
+                    "Chief engineer! Build your BRIDGE: two pillars, the deck… then TEST it with the car 🌉",
+                    "¡Ingeniera jefa! Construye tu PUENTE: dos pilares, el tablero… y PRUEBA con el coche 🌉"),
+                  L("Ton PONT tient bon ! Les voitures peuvent passer ! 🌉🚗",
+                    "Your BRIDGE holds! The cars can cross! 🌉🚗",
+                    "¡Tu PUENTE aguanta! ¡Los coches pueden pasar! 🌉🚗"))),
+    _skill(85, "build-machine", "invention", 5, "⚙️", L("Je fabrique une machine à bonbons", "I build a candy machine", "Fabrico una máquina de dulces"),
+           _build("⚙️", L("une machine à bonbons", "a candy machine", "una máquina de dulces"),
+                  [_item("b-boite", "📦", "la boîte", "the box", "la caja"),
+                   _item("b-bonbons", "🍬", "les bonbons", "the candy", "los dulces"),
+                   _item("b-manivelle", "🌀", "la manivelle", "the crank", "la manivela"),
+                   _item("b-trou", "🕳️", "l'ouverture", "the slot", "la salida")],
+                  L("Le rêve ! Fabrique ta MACHINE À BONBONS : la boîte, les bonbons, la manivelle, l'ouverture ⚙️",
+                    "The dream! Build your CANDY MACHINE: the box, the candy, the crank, the slot ⚙️",
+                    "¡El sueño! Fabrica tu MÁQUINA DE DULCES: la caja, los dulces, la manivela, la salida ⚙️"),
+                  L("Clic-clac ! Ta MACHINE À BONBONS fonctionne ! Inventrice de génie ! ⚙️🍬",
+                    "Click-clack! Your CANDY MACHINE works! Genius inventor! ⚙️🍬",
+                    "¡Clic-clac! ¡Tu MÁQUINA DE DULCES funciona! ¡Inventora genial! ⚙️🍬"))),
+    # ============ 🇨🇩 LINGALA (6) — première langue bantoue (v2.4) ============
+    # Même pédagogie que les pistes EN/ES : le mot lingala EST la cible (le label
+    # est identique dans les 3 langues), la consigne suit la langue du profil.
+    # La voix du téléphone lit à la française (lingala = langue phonétique :
+    # lecture très proche de la prononciation réelle).
+    _skill(86, "ln-word-1", "lingala", 1, "🔢", L("Lingala : les nombres", "Lingala: numbers", "Lingala: los números"),
+           _tap([_item("ln-moko", "1️⃣", "mokɔ́", "mokɔ́", "mokɔ́"), _item("ln-mibale", "2️⃣", "míbalé", "míbalé", "míbalé"),
+                 _item("ln-misato", "3️⃣", "mísáto", "mísáto", "mísáto"), _item("ln-minei", "4️⃣", "mínei", "mínei", "mínei"),
+                 _item("ln-mitano", "5️⃣", "mítáno", "mítáno", "mítáno")], rounds=4,
+                instruction=L("En lingala (langue bantoue 🇨🇩) ! Touche « {label} » {emoji}",
+                              "In Lingala (a Bantu language 🇨🇩)! Touch “{label}” {emoji}",
+                              "¡En lingala (lengua bantú 🇨🇩)! Toca «{label}» {emoji}"))),
+    _skill(87, "ln-word-2", "lingala", 1, "👨‍👩‍👧", L("Lingala : ma famille", "Lingala: my family", "Lingala: mi familia"),
+           _tap([_item("ln-tata", "👨", "tata", "tata", "tata"), _item("ln-mama", "👩", "mama", "mama", "mama"),
+                 _item("ln-koko", "👵", "koko", "koko", "koko"), _item("ln-ndeko", "🧒", "ndeko", "ndeko", "ndeko")], rounds=4,
+                instruction=L("La famille en lingala ! Touche « {label} » {emoji}",
+                              "Family in Lingala! Touch “{label}” {emoji}",
+                              "¡La familia en lingala! Toca «{label}» {emoji}"))),
+    _skill(88, "ln-word-3", "lingala", 1, "🐶", L("Lingala : les animaux", "Lingala: animals", "Lingala: los animales"),
+           _tap([_item("ln-mbwa", "🐶", "mbwa", "mbwa", "mbwa"), _item("ln-mbisi", "🐟", "mbísi", "mbísi", "mbísi"),
+                 _item("ln-soso", "🐔", "sóso", "sóso", "sóso"), _item("ln-nyama", "🦌", "nyama", "nyama", "nyama")], rounds=4,
+                instruction=L("Les animaux en lingala ! Touche « {label} » {emoji}",
+                              "Animals in Lingala! Touch “{label}” {emoji}",
+                              "¡Los animales en lingala! Toca «{label}» {emoji}"))),
+    _skill(89, "ln-word-4", "lingala", 2, "🖐️", L("Lingala : mon corps", "Lingala: my body", "Lingala: mi cuerpo"),
+           _tap([_item("ln-loboko", "🖐️", "lobɔ́kɔ́", "lobɔ́kɔ́", "lobɔ́kɔ́"), _item("ln-miso", "👁️", "míso", "míso", "míso"),
+                 _item("ln-matoi", "👂", "matói", "matói", "matói"), _item("ln-lolo", "👄", "lólo", "lólo", "lólo")], rounds=4,
+                instruction=L("Mon corps en lingala ! Touche « {label} » {emoji}",
+                              "My body in Lingala! Touch “{label}” {emoji}",
+                              "¡Mi cuerpo en lingala! Toca «{label}» {emoji}"))),
+    _skill(90, "ln-phr-1", "lingala", 2, "👋", L("Lingala : dire bonjour", "Lingala: say hello", "Lingala: saludar"),
+           {"type": "chat", "partner": {"emoji": "🦜", "name": "Koko"},
+            "lines": [
+                {"say_l": "Mbote !", "gesture": "wave",
+                 "say_i18n": L("Koko le perroquet te fait un grand signe de la main : il te dit bonjour en lingala ! Répète-lui :",
+                               "Koko the parrot waves at you: he says hello in Lingala! Say it back to him:",
+                               "Koko el loro te saluda con la mano: ¡te dice hola en lingala! Respóndele:")},
+                {"say_l": "Mbote mama !", "gesture": "clap",
+                 "say_i18n": L("Et maintenant, dis bonjour à maman ! Répète en t'applaudissant :",
+                               "And now, say hello to mummy! Repeat while clapping:",
+                               "Y ahora, ¡saluda a mamá! Repite aplaudiendo:")}],
+            "cheer": L("Koko danse de joie : tu sais dire bonjour en lingala ! 👋",
+                       "Koko dances with joy: you can say hello in Lingala! 👋",
+                       "¡Koko baila de alegría: ya sabes saludar en lingala! 👋")}),
+    _skill(91, "ln-phr-2", "lingala", 3, "🌙", L("Lingala : merci et bonne nuit", "Lingala: thank you & good night", "Lingala: gracias y buenas noches"),
+           {"type": "chat", "partner": {"emoji": "🦜", "name": "Koko"},
+            "lines": [
+                {"say_l": "Matondo !", "gesture": "bow",
+                 "say_i18n": L("Tu offres un fruit à Koko : il s'incline et dit merci. Réponds-lui :",
+                               "You offer Koko a fruit: he bows and says thank you. Answer him:",
+                               "Le ofreces una fruta a Koko: se inclina y da las gracias. Respóndele:")},
+                {"say_l": "Lala salama !", "gesture": "sleep",
+                 "say_i18n": L("Koko bâille et ferme les yeux : il te souhaite bonne nuit. Souhaite-lui bonne nuit aussi :",
+                               "Koko yawns and closes his eyes: he wishes you good night. Wish him good night too:",
+                               "Koko bosteza y cierra los ojos: te desea buenas noches. Deséale buenas noches también:")}],
+            "cheer": L("Koko s'endort heureux : quelle belle conversation en lingala ! 🌙",
+                       "Koko falls asleep happy: what a lovely conversation in Lingala! 🌙",
+                       "Koko se duerme feliz: ¡qué bonita conversación en lingala! 🌙")}),
+    # ============ 🇵🇹 PORTUGAIS (6) — même méthode que le lingala (v2.5) ============
+    # Tout s'apprend sur BASE DU FRANÇAIS (langue du profil) : la consigne guide
+    # en français, le mot portugais est la cible. Conversations animées avec
+    # Dina le dauphin (gestes démonstratifs : signe, révérence, dodo).
+    _skill(92, "pt-word-1", "portugais", 1, "🔢", L("Portugais : les nombres", "Portuguese: numbers", "Portugués: los números"),
+           _tap([_item("pt-um", "1️⃣", "um", "um", "um"), _item("pt-dois", "2️⃣", "dois", "dois", "dois"),
+                 _item("pt-tres", "3️⃣", "três", "três", "três"), _item("pt-quatro", "4️⃣", "quatro", "quatro", "quatro"),
+                 _item("pt-cinco", "5️⃣", "cinco", "cinco", "cinco")], rounds=4,
+                instruction=L("En portugais ! Touche « {label} » {emoji}", "In Portuguese! Touch “{label}” {emoji}", "¡En portugués! Toca «{label}» {emoji}"))),
+    _skill(93, "pt-word-2", "portugais", 1, "👨‍👩‍👧", L("Portugais : ma famille", "Portuguese: my family", "Portugués: mi familia"),
+           _tap([_item("pt-pai", "👨", "pai", "pai", "pai"), _item("pt-mae", "👩", "mãe", "mãe", "mãe"),
+                 _item("pt-avo", "👵", "avó", "avó", "avó"), _item("pt-irmao", "🧒", "irmão", "irmão", "irmão")], rounds=4,
+                instruction=L("La famille en portugais ! Touche « {label} » {emoji}", "Family in Portuguese! Touch “{label}” {emoji}", "¡La familia en portugués! Toca «{label}» {emoji}"))),
+    _skill(94, "pt-word-3", "portugais", 1, "🐶", L("Portugais : les animaux", "Portuguese: animals", "Portugués: los animales"),
+           _tap([_item("pt-cao", "🐶", "cão", "cão", "cão"), _item("pt-peixe", "🐟", "peixe", "peixe", "peixe"),
+                 _item("pt-galinha", "🐔", "galinha", "galinha", "galinha"), _item("pt-gato", "🐱", "gato", "gato", "gato")], rounds=4,
+                instruction=L("Les animaux en portugais ! Touche « {label} » {emoji}", "Animals in Portuguese! Touch “{label}” {emoji}", "¡Los animales en portugués! Toca «{label}» {emoji}"))),
+    _skill(95, "pt-word-4", "portugais", 2, "🖐️", L("Portugais : mon corps", "Portuguese: my body", "Portugués: mi cuerpo"),
+           _tap([_item("pt-mao", "🖐️", "mão", "mão", "mão"), _item("pt-olhos", "👁️", "olhos", "olhos", "olhos"),
+                 _item("pt-orelhas", "👂", "orelhas", "orelhas", "orelhas"), _item("pt-boca", "👄", "boca", "boca", "boca")], rounds=4,
+                instruction=L("Mon corps en portugais ! Touche « {label} » {emoji}", "My body in Portuguese! Touch “{label}” {emoji}", "¡Mi cuerpo en portugués! Toca «{label}» {emoji}"))),
+    _skill(96, "pt-chat-1", "portugais", 2, "👋", L("Portugais : dire bonjour", "Portuguese: say hello", "Portugués: saludar"),
+           {"type": "chat", "partner": {"emoji": "🐬", "name": "Dina"},
+            "lines": [
+                {"say_l": "Olá !", "gesture": "wave",
+                 "say_i18n": L("Dina le dauphin saute hors de l'eau et te dit bonjour en portugais ! Répète-lui :",
+                               "Dina the dolphin jumps out of the water and says hello in Portuguese! Say it back:",
+                               "¡Dina el delfín salta fuera del agua y te dice hola en portugués! Respóndele:")},
+                {"say_l": "Bom dia !", "gesture": "clap",
+                 "say_i18n": L("Le soleil se lève ! Dina te souhaite bonne journée — répète-lui :",
+                               "The sun is rising! Dina wishes you a good day — say it back:",
+                               "¡Sale el sol! Dina te desea un buen día. Respóndele:")}],
+            "cheer": L("Dina fait des pirouettes : tu sais dire bonjour en portugais ! 👋",
+                       "Dina spins with joy: you can say hello in Portuguese! 👋",
+                       "¡Dina da piruetas: ya sabes saludar en portugués! 👋")}),
+    _skill(97, "pt-chat-2", "portugais", 3, "🌙", L("Portugais : merci et bonne nuit", "Portuguese: thank you & good night", "Portugués: gracias y buenas noches"),
+           {"type": "chat", "partner": {"emoji": "🐬", "name": "Dina"},
+            "lines": [
+                {"say_l": "Obrigado !", "gesture": "bow",
+                 "say_i18n": L("Tu donnes un poisson à Dina : elle fait une révérence et dit merci. Réponds-lui :",
+                               "You give Dina a fish: she bows and says thank you. Answer her:",
+                               "Le das un pez a Dina: hace una reverencia y da las gracias. Respóndele:")},
+                {"say_l": "Boa noite !", "gesture": "sleep",
+                 "say_i18n": L("Dina s'endort sur une vague : souhaite-lui bonne nuit !",
+                               "Dina falls asleep on a wave: wish her good night!",
+                               "Dina se duerme sobre una ola: ¡deséale buenas noches!")}],
+            "cheer": L("Dina dort paisiblement : quelle belle conversation en portugais ! 🌙",
+                       "Dina sleeps peacefully: what a lovely conversation in Portuguese! 🌙",
+                       "Dina duerme tranquila: ¡qué bonita conversación en portugués! 🌙")}),
+    # ============ 🖍️ COLORIAGES (6) — finesse & précision (v2.5) ============
+    # Grandes formes à contours épais : l'enfant colorie SOUS le trait (le contour
+    # reste toujours net), avec 3 tailles de mine — au doigt ou au stylet.
+    _skill(98, "color-maison", "arts", 1, "🏠", L("Coloriage : la maison", "Colouring: the house", "Colorear: la casa"),
+           {"type": "coloring", "art": ART_MAISON, "rounds": 1,
+            "title": L("Colorie la grande maison ! Reste bien dans les lignes 🖍️",
+                       "Colour the big house! Stay nicely inside the lines 🖍️",
+                       "¡Colorea la casa grande! Quédate bien dentro de las líneas 🖍️")}),
+    _skill(99, "color-fleur", "arts", 1, "🌻", L("Coloriage : la fleur", "Colouring: the flower", "Colorear: la flor"),
+           {"type": "coloring", "art": ART_FLEUR, "rounds": 1,
+            "title": L("Colorie la belle fleur ! Chaque pétale a sa couleur 🌈",
+                       "Colour the pretty flower! Each petal gets its colour 🌈",
+                       "¡Colorea la flor bonita! ¡Cada pétalo tiene su color 🌈")}),
+    _skill(100, "color-papillon", "arts", 2, "🦋", L("Coloriage : le papillon", "Colouring: the butterfly", "Colorear: la mariposa"),
+           {"type": "coloring", "art": ART_PAPILLON, "rounds": 1,
+            "title": L("Colorie le papillon ! Les deux ailes pareilles, comme des jumelles 🦋",
+                       "Colour the butterfly! Both wings match, like twins 🦋",
+                       "¡Colorea la mariposa! Las dos alas iguales, como gemelas 🦋")}),
+    _skill(101, "color-voiture", "arts", 2, "🚗", L("Coloriage : la voiture", "Colouring: the car", "Colorear: el coche"),
+           {"type": "coloring", "art": ART_VOITURE, "rounds": 1,
+            "title": L("Colorie la voiture de course ! Prends ton temps 🏎️",
+                       "Colour the racing car! Take your time 🏎️",
+                       "¡Colorea el coche de carreras! Tómate tu tiempo 🏎️")}),
+    _skill(102, "color-fusee", "arts", 2, "🚀", L("Coloriage : la fusée", "Colouring: the rocket", "Colorear: el cohete"),
+           {"type": "coloring", "art": ART_FUSEE, "rounds": 1,
+            "title": L("Colorie la fusée avant le décollage ! 🔥",
+                       "Colour the rocket before lift-off! 🔥",
+                       "¡Colorea el cohete antes del despegue! 🔥")}),
+    _skill(103, "color-poisson", "arts", 2, "🐟", L("Coloriage : le poisson", "Colouring: the fish", "Colorear: el pez"),
+           {"type": "coloring", "art": ART_POISSON, "rounds": 1,
+            "title": L("Colorie le poisson arc-en-ciel ! Glisse doucement ton doigt 🐟",
+                       "Colour the rainbow fish! Glide your finger gently 🐟",
+                       "¡Colorea el pez arcoíris! Desliza el dedo suavemente 🐟")}),
 ]
 
 # ------------------------------------------------------------------ prérequis (arêtes)
@@ -399,6 +857,28 @@ SKILL_EDGES = [
     ("bien-emo-1", "bien-resp"), ("bien-pol", "bien-part"),
     # découverte
     ("dec-meteo", "dec-saisons"),
+    # 🚀 créer & inventer — la créativité a 2 portes d'entrée SANS prérequis
+    # (inv-obs, draw-animal) : elle ne se fait pas attendre. Le reste se chaîne.
+    ("inv-obs", "inv-cause"), ("inv-cause", "inv-eau"), ("inv-eau", "inv-aimant"),
+    ("log-suite", "inv-graine"), ("log-suite", "inv-plan"),
+    ("draw-animal", "inv-histoire"), ("draw-animal", "inv-robot"), ("draw-animal", "inv-boite"),
+    ("log-taille", "inv-tour"), ("inv-tour", "inv-pont"),
+    ("inv-cause", "inv-probleme"), ("inv-obs", "inv-pourquoi"),
+    ("draw-animal", "draw-machine"), ("draw-machine", "inv-nom"),
+    # 🧩 fabrique & assemble — enchaînés sur les notions correspondantes
+    ("inv-obs", "build-maison"), ("build-maison", "build-voiture"),
+    ("draw-animal", "build-robot"), ("inv-cause", "build-fusee"),
+    ("inv-graine", "build-fleur"), ("inv-tour", "build-pont"),
+    ("draw-machine", "build-machine"),
+    # 🇨🇩 lingala — mêmes fondations que les pistes EN/ES
+    ("num-3", "ln-word-1"), ("ln-word-1", "ln-word-2"), ("ln-word-2", "ln-word-3"),
+    ("bien-corps", "ln-word-4"), ("ln-word-1", "ln-phr-1"), ("ln-phr-1", "ln-phr-2"),
+    # 🇵🇹 portugais — mêmes fondations
+    ("num-3", "pt-word-1"), ("pt-word-1", "pt-word-2"), ("pt-word-2", "pt-word-3"),
+    ("bien-corps", "pt-word-4"), ("pt-word-1", "pt-chat-1"), ("pt-chat-1", "pt-chat-2"),
+    # 🖍️ coloriages — adossés aux couleurs
+    ("coul-1", "color-maison"), ("color-maison", "color-fleur"), ("color-fleur", "color-papillon"),
+    ("color-maison", "color-voiture"), ("color-voiture", "color-fusee"), ("coul-2", "color-poisson"),
 ]
 
 QUESTIONS: list[dict] = [

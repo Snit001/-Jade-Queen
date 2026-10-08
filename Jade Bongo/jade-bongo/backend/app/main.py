@@ -21,7 +21,7 @@ BOOT_AT = iso()
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Jade Bɔngɔ́",
-        version="2.1.0",
+        version="2.6.1",
         description="Programme d'éducation dédié à Jade Queen MBO — identification, parcours étape par étape SANS plafond d'âge, trilingue (fr/en/es), bien-être, transparence parents.",
     )
 

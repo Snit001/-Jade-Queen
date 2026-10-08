@@ -3,11 +3,12 @@
    - App shell hors-ligne (ouverture instantanée)
    - API toujours en réseau (jamais de données figées pour un enfant)
 */
-const CACHE = "jade-bongo-v2.1";
+const CACHE = "jade-bongo-v2.6.1";
 const SHELL = [
   "/", "/index.html", "/style.css", "/i18n.js", "/app.js",
   "/parent.html", "/parent.js", "/command.html", "/command.js",
   "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png",
+  "/assets/jardin.jpg",
 ];
 
 self.addEventListener("install", (e) => {

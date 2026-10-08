@@ -145,7 +145,7 @@ class MasteryIn(BaseModel):
 @router.get("/health")
 def health() -> dict[str, Any]:
     n = _tx(lambda con: int(q_one(con, "SELECT COUNT(*) AS n FROM skills")["n"]))
-    return {"status": "ok", "service": "Jade Bɔngɔ́", "version": "2.1.0",
+    return {"status": "ok", "service": "Jade Bɔngɔ́", "version": "2.6.1",
             "skills_total": n, "langs": ["fr", "en", "es"]}
 
 
@@ -246,18 +246,42 @@ def session_end(body: TokenIn) -> dict[str, Any]:
 # ------------------------------------------------------------------- apprentissage
 
 @router.get("/learning/step")
-def learning_step(token: str, lang: str | None = None) -> dict[str, Any]:
+def learning_step(token: str, lang: str | None = None, skill_id: str | None = None) -> dict[str, Any]:
     """Prochaine étape — localisée. La langue effective = paramètre `lang`
-    (appareil de la famille multilingue) ou, à défaut, la langue du profil."""
+    (appareil de la famille multilingue) ou, à défaut, la langue du profil.
+    [AJOUT — JARDIN v2.6] `skill_id` optionnel : fleur choisie librement par
+    l'enfant — 403 « pas encore éclose » si ses prérequis ne sont pas mûrs."""
     session = require_session_token(token)
 
     def work(con: Any) -> dict[str, Any]:
         profile = wellbeing.child_profile(con, session["child_id"])
         effective_lang = norm_lang(lang) if lang else profile["lang"]
-        step = curriculum.next_step(con, session["child_id"], effective_lang)
+        if skill_id:
+            step = curriculum.step_for_skill(con, session["child_id"], skill_id, effective_lang)
+            if step is None:
+                raise HTTPException(403, "Cette fleur n'est pas encore éclose.")
+        else:
+            step = curriculum.next_step(con, session["child_id"], effective_lang)
         step["child"] = profile
         step["child"]["lang"] = effective_lang
         return step
+
+    return _tx(work)
+
+
+@router.get("/learning/garden")
+def learning_garden(token: str, lang: str | None = None) -> dict[str, Any]:
+    """[AJOUT — JARDIN v2.6] Le pré fleuri de l'enfant : parterres (domaines),
+    fleurs (compétences + statuts), fleur recommandée par l'adaptatif."""
+    session = require_session_token(token)
+
+    def work(con: Any) -> dict[str, Any]:
+        profile = wellbeing.child_profile(con, session["child_id"])
+        effective_lang = norm_lang(lang) if lang else profile["lang"]
+        out = curriculum.garden(con, session["child_id"], effective_lang)
+        out["child"] = profile
+        out["child"]["lang"] = effective_lang
+        return out
 
     return _tx(work)
 
